@@ -20,6 +20,11 @@ run:
     enabled: true
     fraction: 0.05        # deterministic subsample of episodes (by seed) that get a video
 
+sim:
+  # -1: no CUDA/EGL device matching — required under WSL2, where Mesa renders via D3D12 (D-008).
+  # On a Linux server with NVIDIA EGL set KZNAV_GPU_DEVICE_ID=0.
+  gpu_device_id: ${oc.env:KZNAV_GPU_DEVICE_ID,-1}
+
 paths:
   # Datasets live on the WSL ext4 disk (9P access to /mnt/c is slow for GLB loading).
   data_root: ${oc.env:KZNAV_DATA_ROOT,data}

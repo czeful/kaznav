@@ -14,14 +14,18 @@ SoftSPL, DTS) с доверительными интервалами и парн
 
 | Этап | Статус |
 |---|---|
-| 2. Каркас: интерфейсы, конфиги, Mock/Replay, метрики с тестами | **готов**, 204 теста |
+| 2. Каркас: интерфейсы, конфиги, Mock/Replay, метрики с тестами | **готов** |
 | 2′. Окружение: рендер Habitat в WSL2 | **работает** (Mesa → D3D12 → RTX 5070) |
-| 2′. Окружение: замер видеопамяти, точность Qolda (D-006) | не сделано |
-| 3. Симуляция: робот, движение, сенсоры, пересчёт navmesh | не начат |
+| 3. Симуляция: робот, движение, сенсоры, столкновения, застревание | **готов на тестовых сценах**; на HM3D не проверено (нет данных) |
+| 3. Пересчёт точек обзора эпизодов под робота, наклон камеры | ждёт HM3D |
+| 2′. Замер видеопамяти, точность Qolda (D-006) | не сделано |
 | 4. Базовая линия без языка | не начат |
 | 5. Qolda: разбор цели, верификация, калибровка | интерфейсы готовы, на реальной модели не запускалось |
-| 6. Оценка, отчёты, видео | метрики и статистика готовы, раннера нет |
+| 6. Оценка, отчёты, видео | метрики и статистика готовы, раннера эпизодов нет |
 | 7. Qwen3-VL-4B, матричный прогон | конфиг и класс есть, сервер не поднят |
+
+Тесты: 234 (`python -m pytest`), из них 4 интеграционных с Habitat.
+Проверки физики — [docs/validation/](docs/validation/).
 
 Навигационного конвейера пока нет, поэтому команд «запустить эпизод / оценку /
 сравнение» ещё нет. Они появятся в этом README, когда заработают.
@@ -35,14 +39,18 @@ kznav/
   language/    VLMBackend + реестр; backends/: openai_compat, qolda, qwen_vl, mock, replay;
                prompts (версионированные файлы), schemas, logprobs, lexicon
   perception/  интерфейсы Detector / Segmenter / ValueEncoder + реестры
-  policy/      belief (байес по гипотезам), calibration (калибраторы, порог, защита от утечки dev→test)
-  run/         логирование (JSONL + хранилище изображений), манифест
-  sim/         (этап 3)
-configs/       Hydra: backend/ embodiment/ dataset/ policy/ eval/
+  policy/      belief (байес по гипотезам), calibration (калибраторы, порог, защита от утечки dev→test),
+               controller (pure pursuit для дифференциального привода)
+  run/         логирование (JSONL + хранилище изображений), манифест, сборка конфига
+  sim/         env (обёртка Habitat для обоих embodiment), robot (URDF-робот на моторах),
+               urdf (генерация из конфига), diff_drive, frames, arena, noise,
+               validation (физические проверки), mesh_drive (езда по сканам, D-003)
+configs/       Hydra: backend/ embodiment/ dataset/ policy/ eval/; validation/ — параметры проверок
 prompts/       <набор>/<задача>/v<N>.yaml — хеш каждого промпта пишется в каждый вызов
 lexicon/       синонимы категорий по языкам (hm3d_objectnav.yaml — черновик, нужна проверка носителем)
 tests/         pytest; tests/data/pilot_verification.jsonl — сырые данные пилота для сверки ECE
-tools/         wsl.sh (запуск в habitat_env с настройками рендера), check_render.py
+tools/         wsl.sh (запуск в habitat_env с настройками рендера), check_render.py,
+               validate_robot.py, mesh_drive_test.py, compare_views.py
 env/           точный состав habitat_env (conda + pip freeze)
 qolda check/   пилот (отдельный git-репозиторий, не входит в этот)
 ```
@@ -64,6 +72,16 @@ bash tools/wsl.sh python -m pytest
 
 # проверка рендера Habitat: строка "Renderer:" должна называть NVIDIA
 bash tools/wsl.sh python tools/check_render.py --out /tmp/render_check.png
+
+# физика робота на арене из примитивов (9 сценариев, ~30 с) -> runs/validation/<время>/report.md
+bash tools/wsl.sh python tools/validate_robot.py
+
+# езда робота по собственному navmesh на сканах (D-003, ~3 мин) -> runs/mesh_drive/<время>/summary.md
+# нужны тестовые сцены: python -m habitat_sim.utils.datasets_download --uids habitat_test_scenes --data-path ~/kznav_data
+bash tools/wsl.sh python tools/mesh_drive_test.py
+
+# кадр робота (0.15 м) рядом с кадром агента Habitat (0.88 м) из тех же точек
+bash tools/wsl.sh python tools/compare_views.py --scene ~/kznav_data/scene_datasets/habitat-test-scenes/apartment_1.glb --out views.png
 
 # поднять Qolda (сервер пилота, bf16, порт 23333) — в отдельном терминале WSL
 source ~/qolda-env/bin/activate

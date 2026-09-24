@@ -1,0 +1,16 @@
+# D-003: can the physical robot drive the paths its own navmesh says are feasible, on scanned meshes?
+scenes:                       # relative to paths.data_root
+  - scene_datasets/habitat-test-scenes/van-gogh-room.glb
+  - scene_datasets/habitat-test-scenes/apartment_1.glb
+  - scene_datasets/habitat-test-scenes/skokloster-castle.glb
+episodes_per_scene: 20
+min_geodesic_m: 2.0
+max_geodesic_m: 8.0
+goal_radius_m: 0.25           # "arrived" when the reference point is this close to the goal
+replan_every_s: 2.0
+planning_margin_m: 0.03      # paths planned on a navmesh inflated by this; SPL still uses the true-radius navmesh
+timeout_speed_mps: 0.12       # time budget = geodesic / this + timeout_slack_s
+timeout_slack_s: 20.0
+stuck_abort_s: 10.0
+spawn_lift_m: 0.005
+seed: 0

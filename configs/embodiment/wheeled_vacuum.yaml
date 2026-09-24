@@ -1,19 +1,35 @@
-# Low wheeled household robot (robot-vacuum form factor). See docs/decisions.md D-002..D-005.
+# Low wheeled household robot (robot-vacuum form factor). See docs/decisions.md D-002..D-005, D-014.
+# Frame convention (Habitat): +Y up, forward -Z, right +X.
 name: wheeled_vacuum
 kind: wheeled
 
 body:
   radius_m: 0.17              # diameter 0.34 m
-  height_m: 0.12
-  mass_kg: 4.0
+  height_m: 0.12              # floor to top of the chassis
+  mass_kg: 4.0                # total, including wheels and casters
   ground_clearance_m: 0.02
+  com_forward_offset_m: 0.02  # centre of mass ahead of the axle: the front caster carries load
+
+camera_housing:               # collision box around the camera, centred on the optical centre
+  size_m: [0.05, 0.03, 0.03]  # x (width), y (height), z (depth)
 
 drive:
-  type: differential          # 2 driven wheels + 2 passive casters (D-002)
+  type: differential          # 2 driven wheels + front caster + rear anti-tip caster (D-002)
   wheel_radius_m: 0.035
+  wheel_width_m: 0.02
+  wheel_collision_shape: sphere   # cylinder | sphere; cylinders catch internal triangle edges of scans (D-016)
+  wheel_mass_kg: 0.15
   wheel_base_m: 0.23          # distance between the driven wheels
   wheel_friction: 0.9
-  caster_friction: 0.05
+  max_wheel_torque_nm: 0.4    # per wheel; traction-limited on flat floor
+  motor_velocity_gain: 1.0
+  casters:
+    radius_m: 0.02
+    friction: 0.05            # sliding approximation of a free-rolling ball caster
+    mass_kg: 0.02
+    front_offset_m: 0.13      # ahead of the axle
+    rear_offset_m: 0.13       # behind the axle
+    rear_lift_m: 0.012        # rear caster above the floor: 3-point stance, anti-tip only (D-014)
   limits:
     max_lin_vel_mps: 0.30
     max_ang_vel_radps: 1.5
@@ -21,16 +37,25 @@ drive:
     max_ang_acc_radps2: 3.0
 
 physics:
-  mode: articulated           # articulated (URDF + wheel motors) | rigid_body (fallback, D-003)
+  mode: articulated           # URDF + wheel motors in Bullet; validated on scans (D-003); the only mode implemented
   physics_dt_s: 0.004166667   # 240 Hz
   control_dt_s: 0.1           # velocity commands at 10 Hz
+  scene_friction: 1.0         # Bullet multiplies coefficients: effective wheel mu = wheel_friction * scene_friction
+  scene_collision_margin_m: 0.0  # Habitat's default stage margin (0.04 m) inflates every scanned surface by 4 cm (D-015)
+  scene_restitution: 0.1
+  chassis_friction: 0.4       # plastic bumper against walls / furniture
+  contacts:
+    min_normal_force_n: 0.05  # ignore speculative (zero-force) contact points
+    support_normal_min_y: 0.7 # wheel/caster contact with normal within ~45 deg of vertical = support, not collision
 
 navmesh:
   source: recompute           # the standard navmesh is built for the 0.88 m agent (D-001)
   agent_radius_m: 0.17
-  agent_height_m: 0.15        # body + camera mount
-  agent_max_climb_m: 0.02     # door thresholds higher than this are not traversable
+  agent_height_m: 0.17        # top of the camera housing (0.165 m) + margin
+  agent_max_climb_m: 0.01     # = measured climbing ability of the physical model (tools/validate_robot.py, D-014)
   agent_max_slope_deg: 10.0
+  cell_size_m: 0.025          # Recast default 0.05 over-erodes a 0.17 m radius by 3 cm
+  cell_height_m: 0.01         # default 0.2 m cannot represent 1.5 cm climbs or 0.17 m clearances
 
 sensors:
   rgbd:
@@ -38,15 +63,18 @@ sensors:
     hfov_deg: 69.0            # D435-class colour camera (D-004)
     mount:
       height_m: 0.15
-      forward_m: 0.14         # at the front bumper
-      pitch_deg: 0.0          # OPEN (D-004): fixed in stage 3 from a goal-visibility check on dev scenes
+      forward_m: 0.14         # behind the front edge of the chassis (radius 0.17)
+      pitch_deg: 0.0          # OPEN (D-004): fixed from a goal-visibility check on dev scenes
     depth:
       min_m: 0.2
       max_m: 5.0
+  semantic: false             # ground-truth instance ids (funnel metrics); needs semantic annotations
   odometry:
-    enabled: false
+    enabled: true             # wheel odometry from joint velocities (the policy uses GT pose by default)
   imu:
     enabled: false
+
+localization: ground_truth    # standard ObjectNav GPS+compass; odometry is for the robustness study
 
 noise:                        # all off for baseline runs; interfaces exist for the robustness study
   depth: {model: none}        # none | redwood

@@ -14,3 +14,12 @@ stop:
 verification:
   max_calls_per_candidate: 3
   reverify_if_crop_area_grows: 2.0   # re-ask only when the crop got this much bigger (closer view)
+
+controller:                          # pure pursuit for the wheeled robot (kznav/policy/controller.py)
+  lookahead_m: 0.2                   # 0.3 m cut corners into obstacles on scans (D-018)
+  goal_tolerance_m: 0.1
+  max_lin_vel: 0.3
+  max_ang_vel: 1.0
+  rotate_in_place_rad: 0.8
+  slowdown_radius_m: 0.5
+  min_lin_vel: 0.05

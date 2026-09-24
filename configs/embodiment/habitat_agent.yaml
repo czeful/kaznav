@@ -18,7 +18,13 @@ physics:
   mode: none                  # habitat-lab default: navmesh sliding, no dynamics
 
 navmesh:
-  source: dataset             # the navmesh shipped with the scene dataset
+  source: dataset             # the navmesh shipped with the scene dataset; recomputed with these if absent
+  agent_radius_m: 0.18
+  agent_height_m: 0.88
+  agent_max_climb_m: 0.2
+  agent_max_slope_deg: 45.0
+  cell_size_m: 0.05
+  cell_height_m: 0.2
 
 sensors:
   rgbd:
@@ -31,10 +37,13 @@ sensors:
     depth:
       min_m: 0.5
       max_m: 5.0
+  semantic: false
   odometry:
     enabled: false
   imu:
     enabled: false
+
+localization: ground_truth
 
 noise:
   depth: {model: none}

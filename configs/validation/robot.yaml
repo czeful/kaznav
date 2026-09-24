@@ -1,0 +1,31 @@
+# Physics plausibility suite for the wheeled robot (tools/validate_robot.py).
+# Arena: flat static floor (top at y = 0) plus primitive boxes; no scanned mesh involved.
+tolerances:
+  speed_rel: 0.05                 # steady-state speed / yaw rate within 5% of the command
+  accel_factor: 1.25              # measured peak acceleration <= limit * factor (10 Hz finite differences)
+  lateral_drift_m: 0.02           # over the straight run
+  arc_radius_rel: 0.05
+  spin_center_drift_m: 0.05
+straight:  {v: 0.3, seconds: 6.0}
+spin:      {w: 1.5, seconds: 6.0}
+arc:       {v: 0.2, w: 0.5}       # one full circle, expected radius v / w
+wall:      {distance_m: 1.0, v: 0.3, seconds: 10.0}
+steps:
+  heights_m: [0.005, 0.01, 0.0125, 0.015, 0.0175, 0.02, 0.025, 0.03, 0.04]
+  distance_m: 0.5
+  v: 0.3
+  seconds: 8.0
+clearance:
+  bottom_heights_m: [0.12, 0.14, 0.155, 0.16, 0.17, 0.18, 0.20]
+  thickness_m: 0.03
+  distance_m: 0.6
+  v: 0.3
+  seconds: 8.0
+push:
+  masses_kg: [0.5, 2.0, 5.0, 50.0]
+  box_half_m: 0.1
+  box_friction: 0.5
+  distance_m: 0.5
+  v: 0.3
+  seconds: 8.0
+determinism: {repeats: 2}
