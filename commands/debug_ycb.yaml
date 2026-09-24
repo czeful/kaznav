@@ -1,0 +1,16 @@
+# Command templates for the YCB debug categories. {kk} / {ru} / {en} = the category's first name in
+# that language from lexicon/debug_ycb.yaml. The object stays in the nominative case in every
+# template, so no case suffixes (vowel harmony) have to be generated.
+# DRAFT, written by the developer: needs native-speaker review before any non-debug use.
+review_status: draft_needs_native_review
+lexicon: lexicon/debug_ycb.yaml
+templates:
+  kk:
+    - {id: kk_where, text: "{kk} қайда? Тауып бер."}              # Where is X? Find it.
+    - {id: kk_need, text: "Маған {kk} керек, соны тауып бер."}    # I need X, find it.
+    - {id: kk_goto, text: "{kk} тұрған жерге бар."}                # Go to where X is.
+  kk_ru:
+    - {id: kkru_where, text: "{ru} қайда? Тауып бер."}
+    - {id: kkru_need, text: "Маған {ru} керек, соны тауып бер."}
+  en:
+    - {id: en_find, text: "Find the {en}."}

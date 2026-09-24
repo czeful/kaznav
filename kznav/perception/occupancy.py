@@ -41,6 +41,7 @@ class MapParams:
     p_free: float
     obstacle_min_height_m: float
     obstacle_max_height_m: float
+    cliff_depth_m: float = 0.05
 
     @classmethod
     def from_config(cls, m: Mapping[str, Any], emb: Mapping[str, Any]) -> "MapParams":
@@ -51,6 +52,7 @@ class MapParams:
             l_min=float(lo["min"]), l_max=float(lo["max"]), p_occupied=float(m["p_occupied"]), p_free=float(m["p_free"]),
             obstacle_min_height_m=max(float(m["obstacle_min_height_m"]), float(emb["navmesh"]["agent_max_climb_m"])),
             obstacle_max_height_m=embodiment_top(emb) + float(m["obstacle_margin_above_top_m"]),
+            cliff_depth_m=float(m["cliff_depth_m"]),
         )
 
 
@@ -116,22 +118,27 @@ class OccupancyMap:
 
     # ------------------------------------------------------------------ update
     def classify_points(self, pts_world: np.ndarray, floor_y: float) -> np.ndarray:
-        """0 = floor, 1 = obstacle, 2 = above the band (passable)."""
+        """0 = floor, 1 = obstacle, 2 = above the band (passable).
+
+        Points more than ``cliff_depth_m`` below the floor (a scan hole, a step or stairs down) are
+        obstacles too — the map's equivalent of a robot vacuum's cliff sensors."""
         h = pts_world[:, 1] - floor_y
         cat = np.full(len(h), 2, dtype=np.int8)
         cat[h < self.p.obstacle_min_height_m] = 0
         cat[(h >= self.p.obstacle_min_height_m) & (h <= self.p.obstacle_max_height_m)] = 1
+        cat[h < -self.p.cliff_depth_m] = 1
         return cat
 
-    def update(self, depth: np.ndarray, T_world_cam: np.ndarray, floor_y: float) -> None:
+    def update(self, depth: np.ndarray, T_world_cam: np.ndarray, floor_y: float) -> np.ndarray:
+        """Integrate one depth frame; returns the (row, col) cells observed in it."""
         d = depth[self._v, self._u]
         valid = (d > 0) & (d <= self.p.max_range_m) & np.isfinite(d)
         if not valid.any():
-            return
+            return np.zeros((0, 2), dtype=np.int64)
         pts = to_world(backproject(depth, self.K, self._v[valid], self._u[valid]), T_world_cam)
-        self.update_from_points(pts, T_world_cam[:3, 3], floor_y)
+        return self.update_from_points(pts, T_world_cam[:3, 3], floor_y)
 
-    def update_from_points(self, pts_world: np.ndarray, cam_world: np.ndarray, floor_y: float) -> None:
+    def update_from_points(self, pts_world: np.ndarray, cam_world: np.ndarray, floor_y: float) -> np.ndarray:
         cat = self.classify_points(pts_world, floor_y)
         ex, ey = pts_world[:, 0], -pts_world[:, 2]
         er, ec = self.to_cell(ex, ey)
@@ -147,6 +154,7 @@ class OccupancyMap:
             # within one frame, obstacle evidence wins over the floor / pass-through evidence of the same cell
             key = lambda a: a[:, 0] * (self.n + 1) + a[:, 1]  # noqa: E731
             free_cells = free_cells[~np.isin(key(free_cells), key(hit_cells))]
+        seen = []
         for cells, delta in ((free_cells, self.p.l_miss), (hit_cells, self.p.l_hit)):
             if len(cells) == 0:
                 continue
@@ -154,7 +162,9 @@ class OccupancyMap:
             r, c = cells[ok, 0], cells[ok, 1]
             self.log_odds[r, c] = np.clip(self.log_odds[r, c] + delta, self.p.l_min, self.p.l_max)
             self.observed[r, c] = True
+            seen.append(cells[ok])
         self.n_updates += 1
+        return np.concatenate(seen) if seen else np.zeros((0, 2), dtype=np.int64)
 
     @staticmethod
     def _ray_cells(r0: int, c0: int, r1: np.ndarray, c1: np.ndarray) -> np.ndarray:

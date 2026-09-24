@@ -5,9 +5,10 @@ the online monitor (episode abort) and the offline recomputation from logs.
 
 Stuck definition (docs/measurement_protocol.md): a tick at time t is *stuck*
 when, over the trailing window [t - W, t], motion was commanded at every tick and
-  * if translation was commanded at any tick of the window (|v_cmd| >= v_min):
-    net displacement < d_min — turning on the spot does not count as progress;
-  * otherwise (rotation only, |w_cmd| >= w_min): |net heading change| < yaw_min.
+  * translation commanded at every tick (|v_cmd| >= v_min): net displacement < d_min —
+    pivoting on the spot while trying to drive does not count as progress;
+  * otherwise (rotation only, or mixed): net displacement < d_min AND
+    |net heading change| < yaw_min.
 Stuck time: when a stuck period is first detected, the window that proved it
 (t - t_anchor) is counted retroactively — otherwise every stuck period would be
 under-counted by W; afterwards each further stuck tick adds its dt. The
@@ -83,12 +84,14 @@ class StuckMonitor:
             self._hist.popleft()
         t0, x0, y0, yaw0, _, _ = self._hist[0]
         full_window = t - t0 >= self.p.window_s - 1e-9
+        moved = math.hypot(x - x0, y - y0) >= self.p.min_displacement_m
+        turned = abs(_wrap(yaw - yaw0)) >= self.p.min_yaw_change_rad
         if not full_window or not all(h[4] for h in self._hist):
             stuck = False
-        elif any(h[5] for h in self._hist):
-            stuck = math.hypot(x - x0, y - y0) < self.p.min_displacement_m
+        elif all(h[5] for h in self._hist):
+            stuck = not moved
         else:
-            stuck = abs(_wrap(yaw - yaw0)) < self.p.min_yaw_change_rad
+            stuck = not moved and not turned
         if stuck:
             add = min(t - t0, t - self._last_stuck_t) if not self._was_stuck else dt
             self.stuck_time_s += add

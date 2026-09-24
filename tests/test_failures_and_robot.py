@@ -25,6 +25,7 @@ class TestOutcomes:
         (Termination.NO_FRONTIERS, Outcome.NOT_FOUND),
         (Termination.STUCK_ABORT, Outcome.STUCK),
         (Termination.COLLISION_ABORT, Outcome.COLLISIONS),
+        (Termination.FELL, Outcome.FELL),
         (Termination.MODEL_ERROR, Outcome.MODEL_FAILURE),
         (Termination.SIM_ERROR, Outcome.SIM_FAILURE),
     ])
@@ -96,6 +97,13 @@ class TestStuck:
         t = series(60)
         poses = [(0.0, 0.0, 0.3 * ti) for ti in t]
         assert stuck_time(t, poses, [(0.3, 0.3)] * 60, PARAMS) == pytest.approx(5.9)
+
+    def test_spin_then_slow_start_is_not_stuck(self):
+        # 5 s of rotation in place, then a slow forward command: the window is mixed -> not stuck
+        t = series(60)
+        poses = [(0.0, 0.0, 1.0 * ti) if ti < 5.0 else (0.05 * (ti - 5.0), 0.0, 5.0) for ti in t]
+        cmds = [(0.0, 1.0) if ti < 5.0 else (0.05, 1.0) for ti in t]
+        assert stuck_time(t, poses, cmds, PARAMS) == 0.0
 
     def test_time_must_increase(self):
         mon = StuckMonitor(PARAMS)

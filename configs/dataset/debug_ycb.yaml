@@ -1,0 +1,21 @@
+# DEBUG dataset: habitat test scenes + YCB household objects placed on the floor (known semantic ids).
+# The categories do not occur in the scenes themselves, so ground truth is complete — required for
+# honest numbers with a real detector (with "chair", the scene's own unlabelled chairs are found too).
+# role: debug — pipeline checks, demos, never in the main tables.
+name: debug_ycb
+split: debug
+role: debug
+scenes:
+  - scene_datasets/habitat-test-scenes/apartment_1.glb
+objects:
+  - {category: banana, config_path: "${paths.data_root}/objects/ycb/configs/011_banana.object_config.json", count: 1}
+  - {category: mustard bottle, config_path: "${paths.data_root}/objects/ycb/configs/006_mustard_bottle.object_config.json", count: 1}
+  - {category: power drill, config_path: "${paths.data_root}/objects/ycb/configs/035_power_drill.object_config.json", count: 1}
+  - {category: pitcher, config_path: "${paths.data_root}/objects/ycb/configs/019_pitcher_base.object_config.json", count: 1}
+min_separation_m: 2.0
+episodes_per_scene: 5                 # per category
+min_geodesic_m: 2.0
+max_geodesic_m: 10.0
+success_distance_m: 0.1
+distance_to: view_points
+lexicon: lexicon/debug_ycb.yaml

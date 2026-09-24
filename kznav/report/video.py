@@ -83,13 +83,47 @@ class TopDownMap:
         return img
 
 
+_FONT_CANDIDATES = ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "C:/Windows/Fonts/arial.ttf")
+_fonts: dict = {}
+
+
+def _font(size: int):
+    """A TrueType font with Cyrillic incl. the Kazakh letters (OpenCV's Hershey fonts are ASCII only)."""
+    if size not in _fonts:
+        from PIL import ImageFont
+
+        _fonts[size] = None
+        for f in _FONT_CANDIDATES:
+            if Path(f).exists():
+                _fonts[size] = ImageFont.truetype(f, size)
+                break
+    return _fonts[size]
+
+
+def draw_text(img: np.ndarray, text: str, xy: Tuple[int, int], color=WHITE, size: int = 16) -> np.ndarray:
+    """Draw one line with its top-left at ``xy``; Unicode-safe (falls back to ASCII-only OpenCV)."""
+    font = _font(size)
+    if font is None:
+        cv2 = _cv2()
+        cv2.putText(img, text, (xy[0], xy[1] + size), cv2.FONT_HERSHEY_SIMPLEX, size / 26, color, 1, cv2.LINE_AA)
+        return img
+    from PIL import Image, ImageDraw
+
+    pil = Image.fromarray(img)
+    ImageDraw.Draw(pil).text(xy, text, font=font, fill=tuple(int(c) for c in color))
+    img[...] = np.asarray(pil)
+    return img
+
+
 def compose(panels: Sequence[np.ndarray], height: int, text_lines: Sequence[str] = (), band_px: int = 26) -> np.ndarray:
-    """Panels side by side at a common height, with a text band above. Output dims are even (H.264)."""
-    cv2 = _cv2()
+    """Panels side by side at a common height, with a text band above. Output dims are even (H.264).
+
+    A text line may be a ``(text, (r, g, b))`` pair to colour it."""
     strip = np.hstack([resize_to_height(p, height) for p in panels])
     band = np.full((band_px * max(1, len(text_lines)) + 6, strip.shape[1], 3), 20, dtype=np.uint8)
     for i, line in enumerate(text_lines):
-        cv2.putText(band, line, (8, band_px * (i + 1) - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, WHITE, 1, cv2.LINE_AA)
+        text, color = line if isinstance(line, tuple) else (line, WHITE)
+        draw_text(band, text, (8, band_px * i + 5), color, size=band_px - 9)
     frame = np.vstack([band, strip])
     h, w = frame.shape[:2]
     return np.ascontiguousarray(frame[: h - h % 2, : w - w % 2])
@@ -167,4 +201,28 @@ def render_policy_map(omap: Any, *, pose: Tuple[float, float, float], radius_m: 
     cv2.circle(img, cp, rad, (230, 120, 0), 2, cv2.LINE_AA)
     tip = px(pose[0] + 2 * radius_m * np.cos(pose[2]), pose[1] + 2 * radius_m * np.sin(pose[2]))
     cv2.line(img, cp, tip, (230, 120, 0), 2, cv2.LINE_AA)
+    return img
+
+
+def render_value_map(omap: Any, value01: np.ndarray, pose: Tuple[float, float, float], radius_m: float,
+                     margin_m: float = 1.0, px_per_cell: int = 2) -> np.ndarray:
+    """Value map (normalised 0..1, turbo colours) over the observed area, north up, with the robot."""
+    cv2 = _cv2()
+    rr, cc = np.nonzero(omap.observed)
+    r_pose, c_pose = (int(v[0]) for v in omap.to_cell(np.array([pose[0]]), np.array([pose[1]])))
+    m = int(np.ceil(margin_m / omap.res))
+    r0 = max(0, min(rr.min() if len(rr) else r_pose, r_pose) - m)
+    r1 = min(omap.n, max(rr.max() if len(rr) else r_pose, r_pose) + m + 1)
+    c0 = max(0, min(cc.min() if len(cc) else c_pose, c_pose) - m)
+    c1 = min(omap.n, max(cc.max() if len(cc) else c_pose, c_pose) + m + 1)
+    v = value01[r0:r1, c0:c1]
+    img = cv2.applyColorMap((255 * v).astype(np.uint8), cv2.COLORMAP_TURBO)[..., ::-1].copy()
+    img[~omap.observed[r0:r1, c0:c1]] = 40
+    img[omap.occupied[r0:r1, c0:c1]] = 0
+    img = img[::-1].copy()
+    img = cv2.resize(img, (img.shape[1] * px_per_cell, img.shape[0] * px_per_cell), interpolation=cv2.INTER_NEAREST)
+    H = img.shape[0]
+    r, c = omap.to_cell(np.array([pose[0]]), np.array([pose[1]]))
+    cp = (int((c[0] - c0 + 0.5) * px_per_cell), int(H - (r[0] - r0 + 0.5) * px_per_cell))
+    cv2.circle(img, cp, max(2, int(round(radius_m / omap.res * px_per_cell))), (255, 255, 255), 2, cv2.LINE_AA)
     return img

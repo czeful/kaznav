@@ -24,6 +24,7 @@ from ..eval.records import EpisodeResult
 from ..eval.robot import StuckMonitor, StuckParams, count_collision_events
 from ..policy.controller import PurePursuit, PurePursuitParams
 from ..policy.objectnav import Decision, ObjectNavPolicy
+from ..policy.verification import event_dict
 from ..sim.episodes import ObjectNavEpisode, footprint_distance
 from ..sim.frames import wrap_angle
 
@@ -44,6 +45,7 @@ class Executor:
             self.no_progress = 0
             self.last_blocked: Optional[Tuple[float, float, float]] = None
             self.repeats = 0
+            self.cliffs = 0
         else:
             self.step_m = float(emb["drive"]["forward_step_m"])
             self.turn = math.radians(float(emb["drive"]["turn_angle_deg"]))
@@ -52,6 +54,7 @@ class Executor:
         self.no_progress = 0
         self.last_blocked = None
         self.repeats = 0
+        self.cliffs = 0
 
     def execute(self, d: Decision, pose: Tuple[float, float, float]) -> Tuple[List[Any], Optional[Tuple[float, float, float]]]:
         """Run one decision. Returns the ticks and, if the robot had to back off, the pose where it was blocked."""
@@ -59,6 +62,8 @@ class Executor:
         if self.wheeled:
             if d.kind in ("spin", "no_plan"):          # no plan yet: look around instead of standing still
                 return env.drive(0.0, self.spin_w, self.ticks_per_decision), None
+            if d.kind == "face" and d.target_xy is not None:
+                return self._face(d.target_xy, pose), None
             if not d.path_xy:
                 return env.drive(0.0, 0.0, self.ticks_per_decision), None
             self.ctrl.set_path(d.path_xy)
@@ -69,8 +74,17 @@ class Executor:
                 t = env.drive(v, w, 1)[0]
                 ticks.append(t)
                 pose = t.pose
+                if t.cliff:
+                    # cliff sensor: stop, back off, report where (the policy marks it on its map)
+                    self.cliffs += 1
+                    n = max(1, int(round(float(self.rec["backup_s"]) / self.control_dt)))
+                    ticks.extend(env.drive(-float(self.rec["backup_speed_mps"]), 0.0, n))
+                    return ticks, t.pose
             return ticks, self._check_progress(start, ticks)
         # point agent: one discrete action
+        if d.kind == "face" and d.target_xy is not None:
+            err = wrap_angle(math.atan2(d.target_xy[1] - pose[1], d.target_xy[0] - pose[0]) - pose[2])
+            return [env.act("turn_left" if err > 0 else "turn_right")], None
         if d.kind in ("spin", "no_plan") or not d.path_xy:
             return [env.act("turn_left")], None
         target = next((p for p in d.path_xy[1:] if math.hypot(p[0] - pose[0], p[1] - pose[1]) >= self.step_m),
@@ -79,6 +93,19 @@ class Executor:
         if abs(err) > self.turn / 2:
             return [env.act("turn_left" if err > 0 else "turn_right")], None
         return [env.act("move_forward")], None
+
+    def _face(self, target: Tuple[float, float], pose: Tuple[float, float, float]) -> List[Any]:
+        """Turn in place towards ``target`` for (at most) one decision period."""
+        ticks = []
+        for _ in range(self.ticks_per_decision):
+            err = wrap_angle(math.atan2(target[1] - pose[1], target[0] - pose[0]) - pose[2])
+            if abs(err) < 0.05:
+                break
+            w = math.copysign(min(self.spin_w, 2.0 * abs(err)), err)
+            t = self.env.drive(0.0, w, 1)[0]
+            ticks.append(t)
+            pose = t.pose
+        return ticks or self.env.drive(0.0, 0.0, 1)
 
     def _check_progress(self, start: Tuple[float, float, float], ticks: List[Any]) -> Optional[Tuple[float, float, float]]:
         """Proprioceptive blockage check (commanded forward motion, no displacement) and back-off."""
@@ -123,8 +150,11 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
                 *, run_id: str, cell_id: str = "", backend: str = "none", model_id: str = "none",
                 command_lang: str = "en", command_text: str = "", command_id: str = "", word_type: str = "universal",
                 use_oracle_aux: bool = False, on_frame: Optional[Callable[..., None]] = None,
-                logger: Any = None) -> Tuple[EpisodeResult, EpisodeTrace]:
+                logger: Any = None, language: Any = None, calls: Any = None) -> Tuple[EpisodeResult, EpisodeTrace]:
+    """``language``: the episode's ``LanguageGoal`` (None: queries are set by the caller, no VLM);
+    ``calls``: a ListSink fed by the VLM backend, for the episode's cost columns."""
     t_wall = time.perf_counter()
+    n_calls0 = len(calls.records) if calls is not None else 0
     ev = cfg["eval"]
     budget = int(ev["episode_budget"]["max_decision_steps"])
     fun = ev["funnel"]
@@ -134,24 +164,45 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
     stuck = StuckMonitor(StuckParams(float(s["window_s"]), float(s["min_displacement_m"]), float(s["min_yaw_change_rad"]),
                                      float(s["min_cmd_lin"]), float(s["min_cmd_ang"])))
     abort_after = float(s["abort_after_s"])
+    fall = ev["fall"]
+    max_tilt, max_drop = float(fall["max_tilt_deg"]), float(fall["max_drop_m"])
 
     obs = env.reset(ep.start_position, ep.start_yaw)
+    start_height = float(obs.position[1])
     policy.reset(obs.pose)
     executor.reset()
     recoveries = 0
     trace = EpisodeTrace(positions=[tuple(obs.position)], poses=[obs.pose])
     contact_flags: List[bool] = []
     contact_times: List[float] = []
-    in_view = detected = False
+    in_view = detected = verified_goal = False
     termination = Termination.STEP_LIMIT
     stop_cand = None
     n_steps = 0
+    verifier = getattr(policy, "verifier", None)
+    n_events = 0
+    stop_radius = float(fun["stop_candidate_radius_m"])
+
+    def is_goal(cand: Any) -> bool:            # privileged: for analysis columns / logs only
+        return min(footprint_distance(cand.position, g.aabb_min, g.aabb_max) for g in ep.goals) <= stop_radius
+
+    if language is not None and not language.parse_ok:
+        budget = 0
+        termination = Termination.MODEL_ERROR
     for step in range(budget):
         n_steps = step + 1
         gp = _goal_pixels(obs.semantic, goal_ids)
         in_view |= int(gp.sum()) >= int(fun["min_goal_pixels"])
         aux = {"semantic": obs.semantic, "goal_ids": {0: goal_ids}} if use_oracle_aux else None
         d = policy.step(obs, aux)
+        if verifier is not None:
+            for vev in verifier.events[n_events:]:
+                cand = next(c for c in policy.memory.candidates if c.cid == vev.cid)
+                goal = is_goal(cand)
+                verified_goal |= goal and vev.decision == "stop"
+                if logger is not None:
+                    logger.event("verification", episode_id=ep.episode_id, **event_dict(vev), is_goal_privileged=goal)
+            n_events = len(verifier.events)
         for det in policy.last_detections:
             x1, y1, x2, y2 = (int(round(v)) for v in det.box_xyxy)
             box = gp[max(0, y1):y2, max(0, x1):x2] if gp.shape != (1, 1) else np.zeros((0,))
@@ -180,8 +231,11 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
             policy.on_blocked(blocked_pose, ahead_m=float(cfg["embodiment"]["body"]["radius_m"]) + r_obs, radius_m=r_obs)
             if logger is not None:
                 logger.event("recovery", episode_id=ep.episode_id, step=step, blocked_pose=list(blocked_pose))
-        aborted = False
+        aborted = fell = False
         for t in ticks:
+            if t.tilt_deg > max_tilt or t.position[1] < start_height - max_drop:
+                fell = True          # the fall itself is not added to the path (it is not driving)
+                break
             trace.positions.append(t.position)
             trace.poses.append(t.pose)
             contact_flags.append(t.collision)
@@ -191,6 +245,12 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
                 if stuck.current_stuck_s >= abort_after:
                     aborted = True
                     break
+        if fell:
+            termination = Termination.FELL
+            if logger is not None:
+                logger.event("fell", episode_id=ep.episode_id, step=step, position=list(ticks[-1].position),
+                             tilt_deg=float(ticks[-1].tilt_deg))
+            break
         obs = env.observe()
         if aborted:
             termination = Termination.STUCK_ABORT
@@ -212,10 +272,14 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
     m = compute_episode_metrics(geom, rule)
     stop_is_goal: Optional[bool] = None
     if termination is Termination.STOP_CALLED and stop_cand is not None:
-        stop_is_goal = min(footprint_distance(stop_cand.position, g.aabb_min, g.aabb_max) for g in ep.goals) \
-            <= float(fun["stop_candidate_radius_m"])
+        stop_is_goal = is_goal(stop_cand)
     outcome = classify_episode(OutcomeInputs(termination, m.success, stop_is_goal))
     gap = float(ev["collisions"]["merge_gap_s"])
+    recs = [r for r in (calls.records[n_calls0:] if calls is not None else []) if not r.context.warmup]
+    if language is not None and language.parse_record is not None and not any(r is language.parse_record for r in recs):
+        recs = [language.parse_record] + recs      # parse cost is charged to every episode (see GoalCache)
+    lat = [float(r.latency_total_s) for r in recs]
+    events = verifier.events if verifier is not None else []
     res = EpisodeResult(
         run_id=run_id, cell_id=cell_id, dataset=ep.dataset, split=ep.split, scene_id=ep.scene_id,
         episode_id=ep.episode_id, goal_category=ep.goal_category, word_type=word_type, command_lang=command_lang,
@@ -227,9 +291,15 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
         termination=termination.value, outcome=outcome.value, stop_candidate_is_goal=stop_is_goal,
         collisions=count_collision_events(contact_flags, contact_times, gap) if contact_flags else 0,
         stuck_time_s=float(stuck.stuck_time_s), goal_ever_in_view=bool(in_view), goal_ever_detected=bool(detected),
-        goal_ever_verified_positive=False, parse_ok=True, parse_attempts=0, n_hypotheses=len(policy.queries),
-        target_match=None, hypothesis_match=None, vlm_calls=0, vlm_calls_verify=0, vlm_latency_total_s=0.0,
-        vlm_latency_median_s=float("nan"), vlm_http_retries=0, vlm_json_retries=0, verify_logprobs_missing=0,
+        goal_ever_verified_positive=bool(verified_goal),
+        parse_ok=language.parse_ok if language is not None else True,
+        parse_attempts=language.parse_attempts if language is not None else 0, n_hypotheses=len(policy.queries),
+        target_match=language.target_match if language is not None else None,
+        hypothesis_match=language.hypothesis_match if language is not None else None,
+        vlm_calls=len(recs), vlm_calls_verify=sum(1 for r in recs if r.method == "verify_candidate"),
+        vlm_latency_total_s=float(sum(lat)), vlm_latency_median_s=float(np.median(lat)) if lat else float("nan"),
+        vlm_http_retries=sum(int(r.http_retries) for r in recs), vlm_json_retries=sum(int(r.json_retries) for r in recs),
+        verify_logprobs_missing=sum(1 for e in events if e.called and e.p_raw is None),
         recoveries=recoveries,
     )
     return res, trace

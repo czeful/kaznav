@@ -1,0 +1,5 @@
+type: grounding_dino
+model_id: IDEA-Research/grounding-dino-tiny     # SwinT-OGC weights, HF implementation (D-009)
+device: cuda
+box_threshold: 0.35                             # GroundingDINO / VLFM defaults
+text_threshold: 0.25

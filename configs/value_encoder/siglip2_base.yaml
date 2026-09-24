@@ -1,0 +1,6 @@
+type: siglip2
+model_id: google/siglip2-base-patch16-224       # same encoder family as the pilot's cultural-gap check
+device: cuda
+dtype: fp16
+prompt_template: "a photo of a {}."
+enabled: true

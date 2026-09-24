@@ -8,6 +8,7 @@ map:
   p_free: 0.4                     # conflicting evidence (hit then miss: p 0.59) stays undecided
   obstacle_min_height_m: 0.03     # floor noise tolerance; the effective minimum is max(this, navmesh climb)
   obstacle_margin_above_top_m: 0.03   # band top = embodiment top + this; anything higher is passable
+  cliff_depth_m: 0.05             # points this far below the floor (holes, steps down) are obstacles (D-026)
 frontiers:
   min_size_cells: 6
 detection:

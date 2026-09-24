@@ -23,6 +23,14 @@ drive:
   wheel_friction: 0.9
   max_wheel_torque_nm: 0.4    # per wheel; traction-limited on flat floor
   motor_velocity_gain: 1.0
+  suspension:                 # EXPERIMENTAL, off: a force-limited motor is not a spring, it bottoms out (D-027)
+    enabled: false
+    travel_down_m: 0.02       # a wheel can drop this far below its nominal position (into a gap)
+    travel_up_m: 0.005
+    preload_force_n: 14.0     # per wheel; 2 x 14 N < robot weight (39 N): the casters stay loaded
+    position_gain: 0.5
+    velocity_gain: 0.5
+    link_mass_kg: 0.02
   casters:
     radius_m: 0.02
     friction: 0.05            # sliding approximation of a free-rolling ball caster
@@ -69,6 +77,11 @@ sensors:
       min_m: 0.2
       max_m: 5.0
   semantic: true              # ground-truth instance ids: view points, funnel metrics, oracle ablation; never input to the policy
+  cliff:                      # IR cliff sensors under the front bumper (standard on robot vacuums, D-026)
+    enabled: true
+    angles_deg: [-45.0, 0.0, 45.0]   # around the heading
+    radius_m: 0.15                   # from the chassis centre (just inside the bumper)
+    drop_m: 0.04                     # no floor within 4 cm below -> cliff (deeper than the 2 cm wheel drop)
   odometry:
     enabled: true             # wheel odometry from joint velocities (the policy uses GT pose by default)
   imu:

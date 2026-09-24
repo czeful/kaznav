@@ -30,3 +30,6 @@ view_points:                         # per-embodiment goal view points (D-001)
   grid_step_m: 0.1
   min_pixels: 100
   max_snap_m: 0.05
+fall:                                # robot fell (scan hole, step down) -> Termination.FELL
+  max_tilt_deg: 60.0
+  max_drop_m: 0.3                    # reference point this far below its start height

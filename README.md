@@ -16,22 +16,27 @@ SoftSPL, DTS) с доверительными интервалами и парн
 |---|---|
 | 2. Каркас: интерфейсы, конфиги, Mock/Replay, метрики с тестами | **готов** |
 | 2′. Окружение: рендер Habitat в WSL2 | **работает** (Mesa → D3D12 → RTX 5070) |
-| 3. Симуляция: робот, движение, сенсоры, столкновения, застревание | **готов на тестовых сценах**; на HM3D не проверено (нет данных) |
+| 2′. Видеопамять (D-006) | **замерено**: Qolda bf16 + Habitat + GroundingDINO + SigLIP2 — пик 11.8 из 12.2 GB, bf16 остаётся |
+| 3. Симуляция: робот, движение, сенсоры, столкновения, застревание, обрывы | **готов на тестовых сценах**; на HM3D не проверено (нет данных) |
 | 3. Наклон камеры | ждёт HM3D |
 | 4. Карта занятости, фронтиры, планировщик, политика ObjectNav, раннер эпизода | **работает** на отладочной сцене; на HM3D не запускалось |
-| 4. Точки обзора под embodiment, отладочные эпизоды, видео эпизода | **готово** |
-| 4. Детектор GroundingDINO, энкодер карты ценности | не начато (сейчас только оракульный детектор — абляция) |
-| 2′. Замер видеопамяти, точность Qolda (D-006) | не сделано |
-| 5. Qolda: разбор цели, верификация, калибровка | интерфейсы готовы, на реальной модели не запускалось |
-| 6. Оценка, отчёты | метрики, статистика, CSV эпизодов готовы; сводный отчёт и матрица — нет |
+| 4. Детектор GroundingDINO (HF), карта ценности SigLIP2 (VLFM-стиль) | **работает**; сверка с GroundingDINO пилота не сделана (D-009) |
+| 5. Qolda: свой сервер, разбор команды → гипотезы, верификация перед остановкой, байесовские веса | **работает в цикле навигации** (D-028); калибровка на dev — ждёт HM3D |
+| 5. Языковая часть на данных пилота (30 команд, 32 кропа) | **замерено** (D-029) |
+| 6. Оценка, отчёты | метрики, CSV эпизодов, парные сравнения плеч (`tools/compare_runs.py`) готовы; отчёт статьи — нет |
 | 7. Qwen3-VL-4B, матричный прогон | конфиг и класс есть, сервер не поднят |
 
-Тесты: 265 (`python -m pytest`), из них 4 интеграционных с Habitat и smoke-тест всего цикла на `MockEnv` без GPU.
-Проверки физики — [docs/validation/](docs/validation/).
+Тесты: `python -m pytest` (без видеокарты и без сервера модели; интеграционные с Habitat пропускаются без него).
+Проверки физики — [docs/validation/](docs/validation/). Решения и замеры — [docs/decisions.md](docs/decisions.md).
 
-Цикл ObjectNav (осмотреться → исследовать → найти → подъехать → стоп) работает на
-отладочной сцене с оракульным детектором. Команд «оценка на HM3D / сравнение моделей»
-пока нет: нужны данные HM3D и детектор; они появятся здесь, когда заработают.
+Полный цикл с казахской командой работает на отладочной сцене:
+
+- команда («Банан қайда? Тауып бер.») → Qolda → английские гипотезы с весами;
+- гипотезы → GroundingDINO, по ним же SigLIP2 строит карту ценности;
+- кандидат → кроп → Qolda «иә/жоқ» с логпробами → байесовское обновление → остановка.
+
+Числа отладочной сцены — проверка конвейера, не результаты статьи: сцена одна,
+верификатор без калибровки, команды — черновик без проверки носителем.
 
 ## Структура
 
@@ -90,7 +95,7 @@ bash tools/wsl.sh python tools/mesh_drive_test.py
 # это НЕ эпизод ObjectNav: робот едет по своему navmesh, без восприятия и без модели
 bash tools/wsl.sh python tools/demo_drive.py --routes 3
 
-# отладочные эпизоды ObjectNav (сцена + 4 стула, оракульный детектор) -> runs/debug/<время>/
+# отладочные эпизоды ObjectNav (apartment_1 + 4 объекта YCB, по умолчанию оракульный детектор) -> runs/debug/<время>/
 # (episodes.csv, summary.md, events.jsonl, видео первых эпизодов); role: debug — не результаты статьи
 bash tools/wsl.sh python tools/run_debug_episodes.py --videos 2
 bash tools/wsl.sh python tools/run_debug_episodes.py embodiment=habitat_agent
@@ -98,10 +103,24 @@ bash tools/wsl.sh python tools/run_debug_episodes.py embodiment=habitat_agent
 # кадр робота (0.15 м) рядом с кадром агента Habitat (0.88 м) из тех же точек
 bash tools/wsl.sh python tools/compare_views.py --scene ~/kznav_data/scene_datasets/habitat-test-scenes/apartment_1.glb --out views.png
 
-# поднять Qolda (сервер пилота, bf16, порт 23333) — в отдельном терминале WSL
-source ~/qolda-env/bin/activate
-python "qolda check/local_server/qolda_server.py" --model issai/Qolda --served-name qolda-4b --port 23333
-curl http://localhost:23333/v1/models
+# сервер Qolda (bf16, порт 23333, 4 тайла): servers/qolda_server.py в ~/qolda-env, в фоне
+bash tools/start_qolda.sh            # или tools/restart_qolda.sh; лог runs/servers/qolda.log
+curl http://localhost:23333/kznav/stats
+
+# языковая часть на данных пилота: разбор 30 команд / верификация 32 кропов (1, 4, 12 тайлов)
+bash tools/wsl.sh python tools/eval_language.py parse
+bash tools/wsl.sh python tools/eval_language.py verify --tiles 1,4,12
+
+# эпизоды с казахской командой: разбор Qolda -> GroundingDINO + SigLIP2 -> верификация Qolda
+bash tools/wsl.sh python tools/run_debug_episodes.py --lang kk detector=grounding_dino_tiny value_encoder=siglip2_base
+#   --lang kk_ru (смешанные), --no-verify (без верификации); видео с командой, гипотезами и ответами модели
+
+# то же, с логом памяти GPU (nvidia-smi раз в секунду + пик сервера)
+bash tools/wsl.sh bash tools/with_gpu_log.sh runs/servers/gpu.csv python tools/run_debug_episodes.py --lang kk ...
+
+# матрица плеч на одних и тех же эпизодах + парные сравнения -> runs/compare/matrix_<время>/comparison.md
+bash tools/wsl.sh bash tools/run_debug_matrix.sh
+python tools/compare_runs.py --ref gd_value gd_value=runs/debug/<a> qolda_kk=runs/debug/<b>
 ```
 
 ### Выбор компонентов

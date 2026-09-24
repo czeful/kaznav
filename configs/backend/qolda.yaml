@@ -7,8 +7,8 @@ hf_repo: issai/Qolda
 # (qolda check/local_server/qolda_server.py) loads bf16; see docs/decisions.md D-006.
 weights_precision: bf16
 server:
-  impl: qolda_fastapi              # lmdeploy 0.17.0 fails on Qolda's config (pilot INSTALL_LOG)
-  image_max_tiles: 12              # InternVL dynamic tiling on the server; OPEN (D-007)
+  impl: kznav_fastapi              # servers/qolda_server.py (lmdeploy 0.17.0 fails on Qolda's config)
+  image_max_tiles: 4               # also sent per request in extra_body.max_num_tiles (D-007)
 base_url: http://localhost:23333/v1
 api_key: EMPTY
 http:
@@ -24,6 +24,7 @@ max_tokens:
 top_logprobs: 10
 extra_body:
   enable_thinking: false           # MANDATORY, explicit in every request (pilot: Think loses on every axis)
+  max_num_tiles: 4                 # InternVL tiles per image (D-007); the server returns the tiles used
 control_think_measurement: false   # true only in the dedicated Think control run
 image:
   format: png                      # lossless: the model sees exactly the logged crop

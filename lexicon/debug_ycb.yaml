@@ -1,0 +1,15 @@
+# Names for the YCB debug categories. kk / ru are a DRAFT for native-speaker review.
+review_status: draft_needs_native_review
+categories:
+  - name: banana
+    word_type: universal
+    names: {en: [banana], kk: [банан], ru: [банан]}
+  - name: mustard bottle
+    word_type: universal
+    names: {en: [mustard bottle, mustard, bottle], kk: [қыша бөтелкесі, қыша], ru: [горчица, бутылка горчицы]}
+  - name: power drill
+    word_type: universal
+    names: {en: [power drill, drill], kk: [бұрғы, дрель], ru: [дрель]}
+  - name: pitcher
+    word_type: universal
+    names: {en: [pitcher, jug], kk: [құмыра, кувшин], ru: [кувшин]}

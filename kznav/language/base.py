@@ -132,6 +132,17 @@ class ListSink:
         self.records.append(rec)
 
 
+class TeeSink:
+    """Sends every record to several sinks (e.g. the run's JSONL log and a ListSink for per-episode costs)."""
+
+    def __init__(self, *sinks: CallSink) -> None:
+        self.sinks = sinks
+
+    def __call__(self, rec: CallRecord) -> None:
+        for s in self.sinks:
+            s(rec)
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 

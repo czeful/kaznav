@@ -179,7 +179,7 @@ def sample_episodes(env: Any, goals: Sequence[GoalInstance], category: str, n: i
         if not (min_geodesic_m <= d <= max_geodesic_m):
             continue
         out.append(ObjectNavEpisode(
-            episode_id=f"{Path(scene_id).stem}_{category}_{len(out):03d}", scene_id=scene_id, dataset=dataset,
+            episode_id=f"{Path(scene_id).stem}_{category.replace(' ', '-')}_{len(out):03d}", scene_id=scene_id, dataset=dataset,
             split=split, start_position=[float(v) for v in start], start_yaw=float(rng.uniform(-math.pi, math.pi)),
             goal_category=category, goals=list(cat_goals), start_geodesic_m=float(d), embodiment=embodiment))
     return out

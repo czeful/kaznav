@@ -89,6 +89,27 @@ MSYS_NO_PATHCONV=1 wsl -d Ubuntu-22.04 --cd /mnt/c/Users/Bieber/Desktop/robot_si
 встроенным ffmpeg 7.0.2 (static). OpenCV сам пишет только `mp4v`, который стандартный плеер
 Windows может не открыть.
 
+### 7. Модели восприятия в habitat_env
+
+`transformers` 4.57.6, safetensors 0.7.0, tokenizers 0.22.2, torch 2.8.0+cu128.
+Веса из HF: `IDEA-Research/grounding-dino-tiny` (детектор, D-009) и
+`google/siglip2-base-patch16-224` (карта ценности, fp16). Кэш — `~/.cache/huggingface`.
+Собственных CUDA-расширений нет, поэтому сборка под sm_120, как в пилоте, не нужна.
+
+### 8. Сервер Qolda (`servers/qolda_server.py`) и отладочные объекты YCB
+
+- Окружение `~/qolda-env`: torch 2.12.1+cu130, torchvision 0.27.1, transformers 4.57.6,
+  fastapi 0.141.1, uvicorn 0.53.0, timm 1.0.29, einops 0.8.2. Веса `issai/Qolda` (8.1 GB)
+  в кэше HF.
+- Запуск: `bash tools/start_qolda.sh`, перезапуск: `bash tools/restart_qolda.sh`.
+  Лог — `runs/servers/qolda.log`, готовность — через ~15–20 с.
+- Сервер пилота (`qolda check/local_server`) больше не нужен. Этот сервер добавляет
+  `max_num_tiles` и `enable_thinking` на запрос, `GET /kznav/stats`
+  и `POST /kznav/reset_peak` (замер памяти, D-006).
+- Объекты YCB (`ycb_1.2`, через `habitat_sim.utils.datasets_download --uids ycb`):
+  конфиги ссылаются на `collision_meshes`, а папка в архиве называется `collison_meshes`.
+  Исправление — симлинк `collision_meshes -> collison_meshes` в `~/kznav_data/objects/ycb/`.
+
 ### Не сделано / известно
 
 - Docker не установлен (пользователь установит). Dockerfile для Linux-сервера с

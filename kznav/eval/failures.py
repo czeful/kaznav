@@ -19,6 +19,7 @@ class Termination(str, Enum):
     NO_FRONTIERS = "no_frontiers"          # nothing left to explore, no stop called
     STUCK_ABORT = "stuck_abort"            # stuck longer than the configured limit
     COLLISION_ABORT = "collision_abort"    # only if a collision limit is configured
+    FELL = "fell"                          # robot tipped over / fell through a hole or down a step
     MODEL_ERROR = "model_error"            # VLM failed irrecoverably (after retries)
     SIM_ERROR = "sim_error"                # simulator / infrastructure failure
 
@@ -32,6 +33,7 @@ class Outcome(str, Enum):
     COLLISIONS = "collisions"
     STEP_LIMIT = "step_limit"
     NOT_FOUND = "not_found"                # exploration exhausted without stopping
+    FELL = "fell"
     MODEL_FAILURE = "model_failure"
     SIM_FAILURE = "sim_failure"
 
@@ -60,6 +62,7 @@ def classify_episode(x: OutcomeInputs) -> Outcome:
         Termination.NO_FRONTIERS: Outcome.NOT_FOUND,
         Termination.STUCK_ABORT: Outcome.STUCK,
         Termination.COLLISION_ABORT: Outcome.COLLISIONS,
+        Termination.FELL: Outcome.FELL,
         Termination.MODEL_ERROR: Outcome.MODEL_FAILURE,
         Termination.SIM_ERROR: Outcome.SIM_FAILURE,
     }

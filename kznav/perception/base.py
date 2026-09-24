@@ -71,9 +71,10 @@ class ValueEncoder(ABC):
         return {"class": f"{type(self).__module__}.{type(self).__qualname__}", "spec": self.spec}
 
 
-DETECTORS: Registry[Detector] = Registry("detector", builtin_modules=["kznav.perception.mock", "kznav.perception.oracle"])
+DETECTORS: Registry[Detector] = Registry("detector", builtin_modules=["kznav.perception.mock", "kznav.perception.oracle",
+                                                                  "kznav.perception.grounding_dino"])
 SEGMENTERS: Registry[Segmenter] = Registry("segmenter", builtin_modules=["kznav.perception.mock"])
-VALUE_ENCODERS: Registry[ValueEncoder] = Registry("value encoder", builtin_modules=["kznav.perception.mock"])
+VALUE_ENCODERS: Registry[ValueEncoder] = Registry("value encoder", builtin_modules=["kznav.perception.mock", "kznav.perception.siglip"])
 
 
 def create_detector(spec: Mapping[str, Any]) -> Detector:

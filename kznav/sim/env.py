@@ -58,6 +58,7 @@ class Tick:
     max_collision_force_n: float = 0.0
     tilt_deg: float = 0.0
     odom_twist: Optional[Tuple[float, float]] = None
+    cliff: bool = False                     # front cliff sensors see no floor (wheeled robot)
 
 
 def physics_config_json(emb: Mapping[str, Any]) -> Dict[str, Any]:
@@ -235,6 +236,7 @@ class HabitatEnv:
                 v_cmd=v, w_cmd=w, collision=c.collision, collision_links=c.collision_links,
                 max_collision_force_n=c.max_collision_force_n, tilt_deg=self.robot.tilt_deg(),
                 odom_twist=self.robot.odometry_twist(),
+                cliff=self.robot.cliff_detected(self.emb["sensors"].get("cliff", {})),
             ))
         return out
 

@@ -10,10 +10,16 @@ stop:
   # Fitted on dev ONLY (kznav.policy.calibration). Required for reported runs;
   # a run without it is debug-only and says so in its manifest.
   calibration_file: null
+  debug_threshold: 0.6               # used only without calibration_file (identity calibrator)
+  debug_base_rate: 0.5               # prior P(candidate is the target) without calibration_file
 
-verification:
+verification:                        # verify-before-stop (kznav/policy/verification.py); only with a VLM in the loop
   max_calls_per_candidate: 3
   reverify_if_crop_area_grows: 2.0   # re-ask only when the crop got this much bigger (closer view)
+  reject_below: 0.25                 # candidate probability below this -> rejected at once
+  max_wait_steps: 4                  # in stop range with no bigger view for this many steps -> rejected
+  crop_padding: 0.25                 # context around the box, per side, as a fraction of the box size
+  min_crop_px: 48
 
 controller:                          # pure pursuit for the wheeled robot (kznav/policy/controller.py)
   lookahead_m: 0.2                   # 0.3 m cut corners into obstacles on scans (D-018)
@@ -42,6 +48,8 @@ approach:
   stop_distance_m: 0.6               # stop when the robot centre is this close to the candidate's nearest point ...
   recent_steps: 3                    # ... and the candidate was detected within this many decision steps
   approach_radius_m: 0.5             # plan to free cells within this of the candidate's points
+  close_radius_m: 0.3                # ... or within this, when the verifier wants a closer view
+  max_unseen_in_range_steps: 8       # in stop range but not detected: turn to it this many steps, then give it up
 
 recovery:                            # wheeled robot: blocked by something the map does not show (low ledge, wedge)
   no_progress_decisions: 2           # consecutive decision periods with forward command but ...
@@ -52,3 +60,9 @@ recovery:                            # wheeled robot: blocked by something the m
   virtual_obstacle_radius_m: 0.08    # marked on the robot's own map just ahead of its front edge
   max_repeats_same_spot: 3           # further blockages within same_spot_radius_m: no more back-offs
   same_spot_radius_m: 0.15
+
+frontier_selection:                  # used only when a value encoder is configured (else: nearest frontier)
+  mode: value                        # value (VLFM-style) | nearest
+  value_radius_m: 0.5                # frontier value = max of the value map within this radius
+  distance_weight_per_m: 0.002       # score = value - w * path cost (value differences are ~0.01-0.05)
+  hysteresis: 0.005                  # keep the previous target unless another frontier beats it by this much

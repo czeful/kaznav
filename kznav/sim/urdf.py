@@ -16,7 +16,9 @@ distances and path length) is the robot-frame origin, i.e. ``-com`` in the base 
 
 Links:
   base_link      chassis cylinder + camera housing box
-  left_wheel     continuous joint about -X (positive joint velocity drives forward)
+  left_wheel     continuous joint about -X (positive joint velocity drives forward); with
+                 suspension enabled it hangs from left_suspension (prismatic, +Y, spring-loaded
+                 by a force-limited position motor — a preloaded spring)
   right_wheel    idem
   front_caster   fixed low-friction sphere touching the floor
   rear_caster    fixed low-friction sphere ``rear_lift_m`` above the floor (anti-tip)
@@ -162,7 +164,24 @@ def build_urdf(emb: Mapping[str, Any], name: str = "kznav_robot") -> str:
     wr, ww, wm = g.wheel_radius, g.wheel_width, g.wheel_mass
     i_axis = wm * wr * wr / 2.0
     i_diam = wm * (3 * wr * wr + ww * ww) / 12.0
+    susp = drive.get("suspension") or {}
     for side, x in (("left", -g.wheel_base / 2), ("right", g.wheel_base / 2)):
+        parent = "base_link"
+        wheel_origin = g.to_base((x, wr, 0.0))
+        if susp.get("enabled", False):
+            # base_link -> {side}_suspension (prismatic, +Y up) -> {side}_wheel (continuous)
+            sl = ET.SubElement(robot, "link", name=f"{side}_suspension")
+            sm = float(susp["link_mass_kg"])
+            _inertial(sl, sm, 1e-5, 1e-5, 1e-5)
+            sj = ET.SubElement(robot, "joint", name=f"{side}_suspension_joint", type="prismatic")
+            ET.SubElement(sj, "parent", link="base_link")
+            ET.SubElement(sj, "child", link=f"{side}_suspension")
+            _origin(sj, wheel_origin)
+            ET.SubElement(sj, "axis", xyz="0 1 0")
+            ET.SubElement(sj, "limit", lower=_fmt(-float(susp["travel_down_m"])), upper=_fmt(float(susp["travel_up_m"])),
+                          effort="1000", velocity="1")
+            ET.SubElement(sj, "dynamics", damping="0", friction="0")
+            parent, wheel_origin = f"{side}_suspension", (0.0, 0.0, 0.0)
         link = ET.SubElement(robot, "link", name=f"{side}_wheel")
         _inertial(link, wm, i_axis, i_diam, i_diam)
         _contact(link, float(drive["wheel_friction"]))
@@ -175,9 +194,9 @@ def build_urdf(emb: Mapping[str, Any], name: str = "kznav_robot") -> str:
         else:
             raise ValueError(f"wheel_collision_shape must be cylinder|sphere, got {shape!r}")
         joint = ET.SubElement(robot, "joint", name=f"{side}_wheel_joint", type="continuous")
-        ET.SubElement(joint, "parent", link="base_link")
+        ET.SubElement(joint, "parent", link=parent)
         ET.SubElement(joint, "child", link=f"{side}_wheel")
-        _origin(joint, g.to_base((x, wr, 0.0)))
+        _origin(joint, wheel_origin)
         ET.SubElement(joint, "axis", xyz="-1 0 0")  # positive joint velocity = forward (-Z)
         ET.SubElement(joint, "dynamics", damping="0", friction="0")
 
@@ -202,6 +221,8 @@ LINK_ROLES = {
     "base_link": "chassis",
     "left_wheel": "wheel",
     "right_wheel": "wheel",
+    "left_suspension": "suspension",
+    "right_suspension": "suspension",
     "front_caster": "caster",
     "rear_caster": "caster",
 }

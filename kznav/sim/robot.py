@@ -73,6 +73,15 @@ class WheeledRobot:
             for side in ("left", "right")
         }
         self.dof = {side: self.ao.get_link_dof_offset(self.link_ids[f"{side}_wheel"]) for side in ("left", "right")}
+        susp = drive.get("suspension") or {}
+        self.suspension_motors = {}
+        if susp.get("enabled", False):
+            # Position motor pulling each wheel down to full extension, force-limited: a preloaded spring.
+            for side in ("left", "right"):
+                self.suspension_motors[side] = self.ao.create_joint_motor(
+                    self.link_ids[f"{side}_suspension"], habitat_sim.physics.JointMotorSettings(
+                        -float(susp["travel_down_m"]), float(susp["position_gain"]), 0.0, float(susp["velocity_gain"]),
+                        float(susp["preload_force_n"]) * self.physics_dt))
         for name, lid in self.link_ids.items():
             role = LINK_ROLES[name]
             mu = {"wheel": drive["wheel_friction"], "caster": drive["casters"]["friction"]}.get(role)
@@ -134,6 +143,7 @@ class WheeledRobot:
         self.ao.root_linear_velocity = mn.Vector3(0.0, 0.0, 0.0)
         self.ao.root_angular_velocity = mn.Vector3(0.0, 0.0, 0.0)
         self.ao.joint_velocities = [0.0] * len(self.ao.joint_velocities)
+        self.ao.joint_positions = [0.0] * len(self.ao.joint_positions)
         self.limiter.reset()
         self._set_wheel_targets(0.0, 0.0)
         self.v_applied = self.w_applied = 0.0
@@ -199,3 +209,26 @@ class WheeledRobot:
                         "normal_into_robot": [round(float(v), 3) for v in n], "force_n": round(float(c.normal_force), 2),
                         "position": [round(float(v), 4) for v in pos]})
         return out
+
+    def cliff_detected(self, cliff_cfg: Mapping[str, Any]) -> bool:
+        """IR cliff sensors under the front bumper: a downward ray at each sensor finds no floor within
+        ``drop_m`` below the robot's floor level. Same information a robot vacuum has; rays ignore the
+        robot's own links."""
+        import magnum as mn
+        import habitat_sim
+
+        if not cliff_cfg.get("enabled", False):
+            return False
+        mine = {self.object_id} | set(int(k) for k in self.ao.link_object_ids.keys())
+        x, y, yaw = self.pose2d()
+        floor_y = float(self.reference_position()[1])
+        r = float(cliff_cfg["radius_m"])
+        start_h, drop = 0.05, float(cliff_cfg["drop_m"])
+        for deg in cliff_cfg["angles_deg"]:
+            a = yaw + math.radians(float(deg))
+            px, py = x + r * math.cos(a), y + r * math.sin(a)
+            ray = habitat_sim.geo.Ray(mn.Vector3(px, floor_y + start_h, -py), mn.Vector3(0.0, -1.0, 0.0))
+            res = self.sim.cast_ray(ray, start_h + drop)
+            if not any(h.object_id not in mine for h in res.hits):
+                return True
+        return False
