@@ -4,9 +4,10 @@ Both are defined on per-control-tick time series so that the same code serves
 the online monitor (episode abort) and the offline recomputation from logs.
 
 Stuck definition (docs/measurement_protocol.md): a tick at time t is *stuck*
-when, over the trailing window [t - W, t],
-  * motion was commanded at every tick (|v_cmd| >= v_min or |w_cmd| >= w_min), and
-  * net displacement < d_min  and  |net heading change| < yaw_min.
+when, over the trailing window [t - W, t], motion was commanded at every tick and
+  * if translation was commanded at any tick of the window (|v_cmd| >= v_min):
+    net displacement < d_min — turning on the spot does not count as progress;
+  * otherwise (rotation only, |w_cmd| >= w_min): |net heading change| < yaw_min.
 Stuck time: when a stuck period is first detected, the window that proved it
 (t - t_anchor) is counted retroactively — otherwise every stuck period would be
 under-counted by W; afterwards each further stuck tick adds its dt. The
@@ -63,7 +64,7 @@ class StuckMonitor:
 
     def __init__(self, params: StuckParams):
         self.p = params
-        self._hist: Deque[Tuple[float, float, float, float, bool]] = deque()
+        self._hist: Deque[Tuple[float, float, float, float, bool, bool]] = deque()
         self._last_t: float = -math.inf
         self._was_stuck = False
         self._last_stuck_t: float = -math.inf
@@ -75,18 +76,19 @@ class StuckMonitor:
             raise ValueError("times must be strictly increasing")
         dt = 0.0 if self._last_t == -math.inf else t - self._last_t
         self._last_t = t
-        commanded = abs(v_cmd) >= self.p.min_cmd_lin or abs(w_cmd) >= self.p.min_cmd_ang
-        self._hist.append((t, x, y, yaw, commanded))
+        translating = abs(v_cmd) >= self.p.min_cmd_lin
+        commanded = translating or abs(w_cmd) >= self.p.min_cmd_ang
+        self._hist.append((t, x, y, yaw, commanded, translating))
         while len(self._hist) > 1 and self._hist[1][0] <= t - self.p.window_s:
             self._hist.popleft()
-        t0, x0, y0, yaw0, _ = self._hist[0]
+        t0, x0, y0, yaw0, _, _ = self._hist[0]
         full_window = t - t0 >= self.p.window_s - 1e-9
-        stuck = (
-            full_window
-            and all(h[4] for h in self._hist)
-            and math.hypot(x - x0, y - y0) < self.p.min_displacement_m
-            and abs(_wrap(yaw - yaw0)) < self.p.min_yaw_change_rad
-        )
+        if not full_window or not all(h[4] for h in self._hist):
+            stuck = False
+        elif any(h[5] for h in self._hist):
+            stuck = math.hypot(x - x0, y - y0) < self.p.min_displacement_m
+        else:
+            stuck = abs(_wrap(yaw - yaw0)) < self.p.min_yaw_change_rad
         if stuck:
             add = min(t - t0, t - self._last_stuck_t) if not self._was_stuck else dt
             self.stuck_time_s += add

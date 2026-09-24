@@ -11,7 +11,7 @@ from .base import DETECTORS, SEGMENTERS, VALUE_ENCODERS, Detection, Detector, Se
 
 @DETECTORS.register("none")
 class NoDetector(Detector):
-    def detect(self, rgb: np.ndarray, queries: Sequence[str]) -> List[Detection]:
+    def detect(self, rgb: np.ndarray, queries: Sequence[str], aux=None) -> List[Detection]:
         return []
 
 

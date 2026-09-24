@@ -273,6 +273,38 @@ class HabitatEnv:
             pose=pose, position=pos, camera_transform=cam, sim_time=self.sim_time,
         )
 
+    def camera_transform_at(self, position: Sequence[float], yaw: float) -> np.ndarray:
+        """4x4 world transform of the embodiment's camera if its reference point stood at ``position``
+        with map heading ``yaw`` (level floor assumed). Used for view points without moving the robot."""
+        mount = self.emb["sensors"]["rgbd"]["mount"]
+        theta = yaw - math.pi / 2                       # rotation about +Y from the default heading
+        c, s_ = math.cos(theta), math.sin(theta)
+        R_yaw = np.array([[c, 0.0, s_], [0.0, 1.0, 0.0], [-s_, 0.0, c]])
+        p = math.radians(float(mount["pitch_deg"]))
+        R_pitch = np.array([[1.0, 0.0, 0.0], [0.0, math.cos(p), -math.sin(p)], [0.0, math.sin(p), math.cos(p)]])
+        T = np.eye(4)
+        T[:3, :3] = R_yaw @ R_pitch
+        T[:3, 3] = np.asarray(position, dtype=np.float64)[:3] + R_yaw @ np.array(
+            [0.0, float(mount["height_m"]), -float(mount["forward_m"])])
+        return T
+
+    def render_at(self, position: Sequence[float], yaw: float) -> Dict[str, np.ndarray]:
+        """Sensor observations from a hypothetical pose; the embodiment's actual state is restored."""
+        import magnum as mn
+
+        node = self.agent.scene_node
+        saved = node.transformation
+        T = self.camera_transform_at(position, yaw)
+        if self.robot is None:
+            # point-agent sensors are offset by the mount height from the agent node
+            T = T.copy()
+            T[1, 3] -= float(self.emb["sensors"]["rgbd"]["mount"]["height_m"])
+        node.transformation = mn.Matrix4([[T[r][c] for r in range(4)] for c in range(4)])
+        try:
+            return dict(self.sim.get_sensor_observations())
+        finally:
+            node.transformation = saved
+
     # ------------------------------------------------------------------ navmesh queries
     # ``pathfinder=None`` means the evaluation navmesh of this embodiment (used for SPL / reachability).
     def make_pathfinder(self, extra_radius_m: float):

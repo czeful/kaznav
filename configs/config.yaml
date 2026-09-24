@@ -4,6 +4,9 @@ defaults:
   - embodiment: wheeled_vacuum
   - dataset: hm3d_objectnav_v1_val
   - backend: mock
+  - perception: default
+  - detector: none                # set explicitly per run; oracle_semantic is an ablation
+  - segmenter: box
   - policy: default
   - eval: default
   - _self_

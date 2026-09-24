@@ -17,18 +17,21 @@ SoftSPL, DTS) с доверительными интервалами и парн
 | 2. Каркас: интерфейсы, конфиги, Mock/Replay, метрики с тестами | **готов** |
 | 2′. Окружение: рендер Habitat в WSL2 | **работает** (Mesa → D3D12 → RTX 5070) |
 | 3. Симуляция: робот, движение, сенсоры, столкновения, застревание | **готов на тестовых сценах**; на HM3D не проверено (нет данных) |
-| 3. Пересчёт точек обзора эпизодов под робота, наклон камеры | ждёт HM3D |
+| 3. Наклон камеры | ждёт HM3D |
+| 4. Карта занятости, фронтиры, планировщик, политика ObjectNav, раннер эпизода | **работает** на отладочной сцене; на HM3D не запускалось |
+| 4. Точки обзора под embodiment, отладочные эпизоды, видео эпизода | **готово** |
+| 4. Детектор GroundingDINO, энкодер карты ценности | не начато (сейчас только оракульный детектор — абляция) |
 | 2′. Замер видеопамяти, точность Qolda (D-006) | не сделано |
-| 4. Базовая линия без языка | не начат |
 | 5. Qolda: разбор цели, верификация, калибровка | интерфейсы готовы, на реальной модели не запускалось |
-| 6. Оценка, отчёты, видео | метрики и статистика готовы, раннера эпизодов нет |
+| 6. Оценка, отчёты | метрики, статистика, CSV эпизодов готовы; сводный отчёт и матрица — нет |
 | 7. Qwen3-VL-4B, матричный прогон | конфиг и класс есть, сервер не поднят |
 
-Тесты: 234 (`python -m pytest`), из них 4 интеграционных с Habitat.
+Тесты: 265 (`python -m pytest`), из них 4 интеграционных с Habitat и smoke-тест всего цикла на `MockEnv` без GPU.
 Проверки физики — [docs/validation/](docs/validation/).
 
-Навигационного конвейера пока нет, поэтому команд «запустить эпизод / оценку /
-сравнение» ещё нет. Они появятся в этом README, когда заработают.
+Цикл ObjectNav (осмотреться → исследовать → найти → подъехать → стоп) работает на
+отладочной сцене с оракульным детектором. Команд «оценка на HM3D / сравнение моделей»
+пока нет: нужны данные HM3D и детектор; они появятся здесь, когда заработают.
 
 ## Структура
 
@@ -38,14 +41,16 @@ kznav/
                classification, failures, robot (столкновения/застревание), records, aggregate
   language/    VLMBackend + реестр; backends/: openai_compat, qolda, qwen_vl, mock, replay;
                prompts (версионированные файлы), schemas, logprobs, lexicon
-  perception/  интерфейсы Detector / Segmenter / ValueEncoder + реестры
+  perception/  camera, occupancy (карта log-odds под габариты embodiment), frontiers, objects (локализация
+               детекций), oracle (абляция), интерфейсы Detector / Segmenter / ValueEncoder + реестры
   policy/      belief (байес по гипотезам), calibration (калибраторы, порог, защита от утечки dev→test),
-               controller (pure pursuit для дифференциального привода)
-  run/         логирование (JSONL + хранилище изображений), манифест, сборка конфига
+               controller (pure pursuit), planner (Дейкстра по своей карте), objectnav (политика)
+  run/         episode (исполнитель + раннер эпизода), логирование, манифест, сборка конфига
   report/      video (кадр из панелей + карта сверху, запись MP4)
   sim/         env (обёртка Habitat для обоих embodiment), robot (URDF-робот на моторах),
                urdf (генерация из конфига), diff_drive, frames, arena, noise,
-               validation (физические проверки), mesh_drive (езда по сканам, D-003)
+               validation (физические проверки), mesh_drive (езда по сканам, D-003),
+               episodes (точки обзора, отладочные сцены), mock_env (аналитический симулятор для CI)
 configs/       Hydra: backend/ embodiment/ dataset/ policy/ eval/; validation/ — параметры проверок
 prompts/       <набор>/<задача>/v<N>.yaml — хеш каждого промпта пишется в каждый вызов
 lexicon/       синонимы категорий по языкам (hm3d_objectnav.yaml — черновик, нужна проверка носителем)
@@ -84,6 +89,11 @@ bash tools/wsl.sh python tools/mesh_drive_test.py
 # демо-видео: робот проезжает маршруты по сцене (камера, глубина, карта сверху) -> runs/demo/<время>/demo.mp4
 # это НЕ эпизод ObjectNav: робот едет по своему navmesh, без восприятия и без модели
 bash tools/wsl.sh python tools/demo_drive.py --routes 3
+
+# отладочные эпизоды ObjectNav (сцена + 4 стула, оракульный детектор) -> runs/debug/<время>/
+# (episodes.csv, summary.md, events.jsonl, видео первых эпизодов); role: debug — не результаты статьи
+bash tools/wsl.sh python tools/run_debug_episodes.py --videos 2
+bash tools/wsl.sh python tools/run_debug_episodes.py embodiment=habitat_agent
 
 # кадр робота (0.15 м) рядом с кадром агента Habitat (0.88 м) из тех же точек
 bash tools/wsl.sh python tools/compare_views.py --scene ~/kznav_data/scene_datasets/habitat-test-scenes/apartment_1.glb --out views.png

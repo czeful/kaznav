@@ -91,6 +91,12 @@ class TestStuck:
         assert total <= 9.9 + 1e-9
         assert total == pytest.approx(4.9 + 4.9)  # 0..4.9 and 5.0..9.9
 
+    def test_turning_while_trying_to_drive_is_still_stuck(self):
+        # commanded forward + turn, the robot pivots on the spot but does not translate (high-centred)
+        t = series(60)
+        poses = [(0.0, 0.0, 0.3 * ti) for ti in t]
+        assert stuck_time(t, poses, [(0.3, 0.3)] * 60, PARAMS) == pytest.approx(5.9)
+
     def test_time_must_increase(self):
         mon = StuckMonitor(PARAMS)
         mon.update(1.0, 0, 0, 0, 0, 0)

@@ -95,7 +95,7 @@ class TestManifestAndLogs:
         cols = column_names()
         assert len(cols) == len(set(cols))
         assert {"success", "spl", "soft_spl", "dts", "outcome", "vlm_calls", "stuck_time_s"} <= set(cols)
-        assert EpisodeResult.__dataclass_fields__["schema_version"].default == 1
+        assert EpisodeResult.__dataclass_fields__["schema_version"].default == 2
 
 
 @pytest.mark.parametrize("embodiment", EMBODIMENTS)

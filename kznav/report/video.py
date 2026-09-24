@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -118,3 +118,53 @@ class Mp4Writer:
 
     def close(self) -> None:
         self._w.close()
+
+
+def render_policy_map(omap: Any, *, pose: Tuple[float, float, float], radius_m: float,
+                      trajectory: Sequence[Tuple[float, float]] = (), path: Sequence[Tuple[float, float]] = (),
+                      frontier_cells: Sequence[Tuple[int, int]] = (), candidates: Sequence[Any] = (),
+                      gt_boxes: Sequence[Tuple[Sequence[float], Sequence[float]]] = (), margin_m: float = 1.0,
+                      px_per_cell: int = 2) -> np.ndarray:
+    """The robot's own occupancy map (north up), cropped to the observed area.
+
+    unknown = dark grey, free = light, occupied = black, frontier = cyan, planned path = blue,
+    trajectory = red, candidates = magenta, ground-truth goal boxes (debug only) = green outline.
+    """
+    cv2 = _cv2()
+    obs = omap.observed
+    rr, cc = np.nonzero(obs)
+    r_pose, c_pose = (int(v[0]) for v in omap.to_cell(np.array([pose[0]]), np.array([pose[1]])))
+    m = int(np.ceil(margin_m / omap.res))
+    r0 = max(0, min(rr.min() if len(rr) else r_pose, r_pose) - m)
+    r1 = min(omap.n, max(rr.max() if len(rr) else r_pose, r_pose) + m + 1)
+    c0 = max(0, min(cc.min() if len(cc) else c_pose, c_pose) - m)
+    c1 = min(omap.n, max(cc.max() if len(cc) else c_pose, c_pose) + m + 1)
+    img = np.full((r1 - r0, c1 - c0, 3), 70, dtype=np.uint8)
+    img[omap.free[r0:r1, c0:c1]] = (225, 225, 225)
+    img[omap.occupied[r0:r1, c0:c1]] = (20, 20, 20)
+    for r, c in frontier_cells:
+        if r0 <= r < r1 and c0 <= c < c1:
+            img[r - r0, c - c0] = (0, 200, 220)
+    img = img[::-1].copy()                                  # north up
+    img = cv2.resize(img, (img.shape[1] * px_per_cell, img.shape[0] * px_per_cell), interpolation=cv2.INTER_NEAREST)
+    H = img.shape[0]
+
+    def px(x: float, y: float) -> Tuple[int, int]:
+        r, c = omap.to_cell(np.array([x]), np.array([y]))
+        return int((c[0] - c0 + 0.5) * px_per_cell), int(H - (r[0] - r0 + 0.5) * px_per_cell)
+
+    for lo, hi in gt_boxes:
+        a, b = px(lo[0], -lo[2]), px(hi[0], -hi[2])
+        cv2.rectangle(img, (min(a[0], b[0]), min(a[1], b[1])), (max(a[0], b[0]), max(a[1], b[1])), (40, 180, 40), 1)
+    if len(path) > 1:
+        cv2.polylines(img, [np.array([px(*p) for p in path], dtype=np.int32)], False, (60, 110, 230), 1, cv2.LINE_AA)
+    if len(trajectory) > 1:
+        cv2.polylines(img, [np.array([px(*p) for p in trajectory], dtype=np.int32)], False, (220, 40, 40), 1, cv2.LINE_AA)
+    for c in candidates:
+        cv2.circle(img, px(float(c.xy[0]), float(c.xy[1])), 5, (220, 0, 220), 2, cv2.LINE_AA)
+    cp = px(pose[0], pose[1])
+    rad = max(2, int(round(radius_m / omap.res * px_per_cell)))
+    cv2.circle(img, cp, rad, (230, 120, 0), 2, cv2.LINE_AA)
+    tip = px(pose[0] + 2 * radius_m * np.cos(pose[2]), pose[1] + 2 * radius_m * np.sin(pose[2]))
+    cv2.line(img, cp, tip, (230, 120, 0), 2, cv2.LINE_AA)
+    return img

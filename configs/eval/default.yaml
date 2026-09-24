@@ -18,3 +18,15 @@ stuck:
   abort_after_s: 30.0                # stuck longer than this ends the episode (Termination.STUCK_ABORT)
 latency:
   percentiles: [50, 95]
+episode_budget:                      # OPEN (D-005): fixed before the first measured run
+  max_decision_steps: 500            # point agent: one discrete action per decision (habitat standard)
+  decision_period_s: 0.5             # wheeled robot: simulated time per decision step
+funnel:
+  min_goal_pixels: 100               # goal instance "in view" if at least this many pixels of it are visible
+  detection_goal_overlap: 0.3        # a detection "hits" the goal if this fraction of its box is goal pixels
+  stop_candidate_radius_m: 0.3       # stop candidate counts as the goal if within this of a goal AABB
+view_points:                         # per-embodiment goal view points (D-001)
+  success_radius_m: 1.0
+  grid_step_m: 0.1
+  min_pixels: 100
+  max_snap_m: 0.05

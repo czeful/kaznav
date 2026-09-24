@@ -23,3 +23,32 @@ controller:                          # pure pursuit for the wheeled robot (kznav
   rotate_in_place_rad: 0.8
   slowdown_radius_m: 0.5
   min_lin_vel: 0.05
+
+planner:                             # grid planner on the robot's own map (kznav/policy/planner.py)
+  inflation_margin_m: 0.03           # obstacles inflated by robot radius + this
+  tight_margin_m: 0.0                # fallback when nothing is reachable with the margin (narrow gaps, table legs)
+  unknown_cost: 1.5                  # per-metre cost multiplier of unobserved cells
+  proximity_weight: 1.0              # extra cost near obstacles ...
+  proximity_range_m: 0.3             # ... fading to 0 at this distance
+  crop_margin_m: 1.0
+  start_escape_m: 0.3
+
+exploration:
+  initial_spin_deg: 360              # look around before moving
+  spin_ang_vel_radps: 1.0            # wheeled robot spin rate (point agent turns in discrete steps)
+  max_consecutive_no_plan: 5         # planning failures in a row -> treated as exploration exhausted
+
+approach:
+  stop_distance_m: 0.6               # stop when the robot centre is this close to the candidate's nearest point ...
+  recent_steps: 3                    # ... and the candidate was detected within this many decision steps
+  approach_radius_m: 0.5             # plan to free cells within this of the candidate's points
+
+recovery:                            # wheeled robot: blocked by something the map does not show (low ledge, wedge)
+  no_progress_decisions: 2           # consecutive decision periods with forward command but ...
+  min_progress_m: 0.03               # ... less displacement than this -> recovery
+  min_cmd_lin_mps: 0.1
+  backup_speed_mps: 0.15
+  backup_s: 1.0
+  virtual_obstacle_radius_m: 0.08    # marked on the robot's own map just ahead of its front edge
+  max_repeats_same_spot: 3           # further blockages within same_spot_radius_m: no more back-offs
+  same_spot_radius_m: 0.15

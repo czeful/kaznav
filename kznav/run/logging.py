@@ -110,8 +110,8 @@ class RunLogger:
         self.events = JsonlWriter(self.run_dir / "events.jsonl", fsync)
         self.call_sink = JsonlCallSink(self.calls, self.images)
 
-    def event(self, kind: str, *, episode_id: str, step: int, **payload: Any) -> None:
-        self.events.write({"type": kind, "episode_id": episode_id, "step": step, **payload})
+    def event(self, event_type: str, *, episode_id: str, step: int, **payload: Any) -> None:
+        self.events.write({"type": event_type, "episode_id": episode_id, "step": step, **payload})
 
     def close(self) -> None:
         self.calls.close()

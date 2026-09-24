@@ -179,3 +179,23 @@ class WheeledRobot:
             if name not in links:
                 links.append(name)
         return ContactSummary(n_coll > 0, n_coll, max_f, tuple(links), support)
+
+    def contact_details(self) -> List[Dict[str, Any]]:
+        """All robot contacts above the force threshold (diagnostics for stuck episodes)."""
+        me = self.object_id
+        out = []
+        for c in self.sim.get_physics_contact_points():
+            if c.normal_force < self.min_force:
+                continue
+            if c.object_id_a == me and c.object_id_b != me:
+                link, other, n = c.link_id_a, c.object_id_b, np.asarray(c.contact_normal_on_b_in_ws)
+                pos = c.position_on_a_in_ws
+            elif c.object_id_b == me and c.object_id_a != me:
+                link, other, n = c.link_id_b, c.object_id_a, -np.asarray(c.contact_normal_on_b_in_ws)
+                pos = c.position_on_b_in_ws
+            else:
+                continue
+            out.append({"link": self.link_names.get(int(link), "base_link"), "other_object": int(other),
+                        "normal_into_robot": [round(float(v), 3) for v in n], "force_n": round(float(c.normal_force), 2),
+                        "position": [round(float(v), 4) for v in pos]})
+        return out

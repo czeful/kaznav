@@ -12,8 +12,8 @@ selected by name in ``configs/detector``, ``configs/value_encoder``, ...
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, List, Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any, List, Mapping, Optional, Sequence
 
 import numpy as np
 
@@ -26,6 +26,9 @@ class Detection:
     score: float
     query_index: int       # index into the query list passed to ``detect``
     phrase: str            # phrase the model grounded (may differ from the query)
+    #: Optional instance mask (H x W bool) from detectors that produce one; otherwise the
+    #: pipeline's Segmenter makes it from the box.
+    mask: Optional[np.ndarray] = field(default=None, compare=False, repr=False)
 
 
 class Detector(ABC):
@@ -33,8 +36,12 @@ class Detector(ABC):
         self.spec = dict(spec)
 
     @abstractmethod
-    def detect(self, rgb: np.ndarray, queries: Sequence[str]) -> List[Detection]:
-        """Detections for all queries in one image; score threshold is a config value."""
+    def detect(self, rgb: np.ndarray, queries: Sequence[str], aux: Optional[Mapping[str, Any]] = None) -> List[Detection]:
+        """Detections for all queries in one image; score threshold is a config value.
+
+        ``aux`` carries ground-truth side channels for oracle / diagnostic detectors only
+        (e.g. the semantic image); real detectors must ignore it.
+        """
 
     def describe_config(self) -> Mapping[str, Any]:
         return {"class": f"{type(self).__module__}.{type(self).__qualname__}", "spec": self.spec}
@@ -64,7 +71,7 @@ class ValueEncoder(ABC):
         return {"class": f"{type(self).__module__}.{type(self).__qualname__}", "spec": self.spec}
 
 
-DETECTORS: Registry[Detector] = Registry("detector", builtin_modules=["kznav.perception.mock"])
+DETECTORS: Registry[Detector] = Registry("detector", builtin_modules=["kznav.perception.mock", "kznav.perception.oracle"])
 SEGMENTERS: Registry[Segmenter] = Registry("segmenter", builtin_modules=["kznav.perception.mock"])
 VALUE_ENCODERS: Registry[ValueEncoder] = Registry("value encoder", builtin_modules=["kznav.perception.mock"])
 

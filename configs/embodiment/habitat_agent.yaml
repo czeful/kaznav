@@ -37,7 +37,7 @@ sensors:
     depth:
       min_m: 0.5
       max_m: 5.0
-  semantic: false
+  semantic: true              # ground truth only (view points, funnel metrics, oracle ablation)
   odometry:
     enabled: false
   imu:

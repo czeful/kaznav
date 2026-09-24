@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, fields
 from typing import List, Optional
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2   # v2: + recoveries
 
 
 @dataclass
@@ -66,6 +66,8 @@ class EpisodeResult:
     vlm_http_retries: int
     vlm_json_retries: int
     verify_logprobs_missing: int
+    # --- recovery behaviour (v2) ----------------------------------------------
+    recoveries: int = 0              # times the robot backed off after making no progress
     # --- provenance -----------------------------------------------------------
     schema_version: int = SCHEMA_VERSION
     notes: str = ""
