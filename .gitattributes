@@ -1,0 +1,7 @@
+# Line endings: LF in the repository and in the working tree (bash scripts break on CRLF).
+* text=auto eol=lf
+*.sh text eol=lf
+*.png binary
+*.jpg binary
+*.mp4 binary
+*.npz binary

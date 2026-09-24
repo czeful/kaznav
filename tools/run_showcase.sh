@@ -16,6 +16,7 @@ one() {   # one <label> <episode_id> <args...>
 GD="detector=grounding_dino_tiny value_encoder=siglip2_base"
 one gd_banana002      apartment_1_banana_002          $GD
 one kk_banana002      apartment_1_banana_002          --lang kk $GD
-one kk_mustard004     apartment_1_mustard-bottle_004  --lang kk $GD
-one kkru_mustard000   apartment_1_mustard-bottle_000  --lang kk_ru $GD
+one kkru_mustard004   apartment_1_mustard-bottle_004  --lang kk_ru $GD
+one kk_drill003       apartment_1_power-drill_003     --lang kk $GD
+one kk_pitcher002     apartment_1_pitcher_002         --lang kk $GD
 cat "$list"
