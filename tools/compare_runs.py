@@ -31,7 +31,31 @@ def fmt_ci(est, lo, hi, pct=False):
     return f"{est:.3f} [{lo:.2f}, {hi:.2f}]"
 
 
-def arm_row(label: str, g: pd.DataFrame, manifest: dict) -> dict:
+def verifier_stats(run_dir: Path) -> dict:
+    """In-loop verifier accuracy from events.jsonl: raw P(yes) >= 0.5 vs. the privileged is-goal label."""
+    f = run_dir / "events.jsonl"
+    tp = fn = fp = tn = 0
+    if f.exists():
+        for line in open(f, encoding="utf-8"):
+            if '"verification"' not in line:
+                continue
+            e = json.loads(line)
+            if e.get("type") != "verification" or not e.get("called") or e.get("p_raw") is None:
+                continue
+            yes, goal = e["p_raw"] >= 0.5, bool(e["is_goal_privileged"])
+            tp += yes and goal
+            fn += (not yes) and goal
+            fp += yes and not goal
+            tn += (not yes) and not goal
+    n = tp + fn + fp + tn
+    if n == 0:
+        return {"verifier calls": "-", "sens (goal)": "-", "spec (non-goal)": "-"}
+    return {"verifier calls": n,
+            "sens (goal)": f"{tp}/{tp + fn}" if tp + fn else "-",
+            "spec (non-goal)": f"{tn}/{tn + fp}" if tn + fp else "-"}
+
+
+def arm_row(label: str, g: pd.DataFrame, manifest: dict, run_dir: Path) -> dict:
     n = len(g)
     sr = wilson_ci(int(g.success.sum()), n)
     spl = mean_ci(g.spl.astype(float).to_numpy(), n_boot=5000)
@@ -50,6 +74,7 @@ def arm_row(label: str, g: pd.DataFrame, manifest: dict) -> dict:
         "VLM calls/ep": f"{g.vlm_calls.mean():.1f}" if g.vlm_calls.sum() else "-",
         "VLM s/ep": f"{lat.mean():.1f}" if g.vlm_calls.sum() else "-",
         "wall s/ep": f"{g.wall_time_s.mean():.0f}",
+        **verifier_stats(run_dir),
     }
 
 
@@ -67,7 +92,8 @@ def main() -> None:
         df = pd.read_csv(d / "episodes.csv")
         df["arm"] = label
         frames.append(df)
-        manifests[label] = json.loads((d / "manifest.json").read_text(encoding="utf-8")).get("extra", {}) \
+        # build_manifest merges the runner's extra fields (lang, verify, note, ...) into the top level
+        manifests[label] = json.loads((d / "manifest.json").read_text(encoding="utf-8")) \
             if (d / "manifest.json").exists() else {}
         dirs[label] = str(d)
     df = pd.concat(frames, ignore_index=True)
@@ -76,7 +102,7 @@ def main() -> None:
         raise SystemExit(f"--ref {args.ref!r} is not one of {labels}")
     out = Path(args.out) if args.out else REPO / "runs" / "compare" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out.mkdir(parents=True, exist_ok=True)
-    table = pd.DataFrame([arm_row(l, df[df.arm == l], manifests[l]) for l in labels])
+    table = pd.DataFrame([arm_row(l, df[df.arm == l], manifests[l], Path(dirs[l])) for l in labels])
     contrasts = []
     for l in labels:
         if l == args.ref:
@@ -90,7 +116,9 @@ def main() -> None:
              "role: debug — pipeline comparison on the debug set, NOT a paper result.", "",
              "Arms (run directories):", ""] + [f"- **{l}**: `{dirs[l]}`" for l in labels] + [
              "", "SR: Wilson 95% CI; SPL: bootstrap 95% CI over episodes. Funnel columns: share of episodes "
-             "where the goal was ever in view / detected (box on the goal) / accepted by the verifier.", "",
+             "where the goal was ever in view / detected (box on the goal) / accepted by the verifier. "
+             "Verifier sens/spec: in-loop calls, raw P(yes) >= 0.5 vs. whether the candidate is a goal "
+             "instance (privileged, analysis only).", "",
              table.to_markdown(index=False), "",
              f"Paired contrasts vs **{args.ref}** (same episodes; diff = arm − ref, paired bootstrap 95% CI; "
              "exact McNemar on success):", ""]
@@ -103,6 +131,9 @@ def main() -> None:
                                                                   "dz", "mcnemar"]]
         lines.append(view.rename(columns={"arm_a": "arm", "mcnemar": "McNemar (only arm / only ref)"}).to_markdown(
             index=False, floatfmt=".3f"))
+    by_cat = df.assign(success=df.success.astype(float)).pivot_table(
+        index="arm", columns="goal_category", values="success", aggfunc=lambda s: f"{int(s.sum())}/{len(s)}")
+    lines += ["", "Successes by goal category:", "", by_cat.loc[labels].to_markdown()]
     notes = [m.get("note") for m in manifests.values() if m.get("note")]
     if notes:
         lines += ["", "Notes: " + "; ".join(sorted(set(notes)))]

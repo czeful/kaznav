@@ -19,6 +19,7 @@ verification:                        # verify-before-stop (kznav/policy/verifica
   reject_below: 0.25                 # candidate probability below this -> rejected at once
   max_wait_steps: 4                  # in stop range with no bigger view for this many steps -> rejected
   crop_padding: 0.25                 # context around the box, per side, as a fraction of the box size
+  min_box_side_px: 0                 # >0: no call on a smaller box (shorter side), approach first; OFF: not supported by data (D-032)
   min_crop_px: 48
 
 controller:                          # pure pursuit for the wheeled robot (kznav/policy/controller.py)

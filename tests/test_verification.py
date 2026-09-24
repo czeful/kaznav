@@ -219,3 +219,14 @@ def test_candidate_never_seen_again_is_given_up_not_livelocked(embodiment):
     # after giving up it goes back to exploring (or runs out of frontiers) instead of idling at the candidate
     last_face = max(i for i, k in enumerate(kinds) if k == "face")
     assert all(k != "approach" for k in kinds[last_face + 1:])
+
+
+def test_tiny_box_gets_no_call_until_it_is_big_enough():
+    c = cand(box=(50, 50, 63, 63))                                          # 13 x 13 px: too small to judge
+    fb = FakeBackend([0.9])
+    v = Verifier(fb, VerifyQuery("x", "kk"), params(min_box_side_px=32), None)
+    ev = v.check(c, RGB, 0, 1)
+    assert fb.calls == 0 and not ev.called and ev.decision == "wait"
+    c.last_box = (30, 30, 70, 70)                                           # 40 x 40 px
+    ev = v.check(c, RGB, 1, 1)
+    assert fb.calls == 1 and ev.decision == "stop"

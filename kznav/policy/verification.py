@@ -1,8 +1,10 @@
 """Verify-before-stop: the VLM checks a crop of the candidate the robot is about to stop at.
 
 When the policy is within stop range of its best candidate and sees it in the current frame, it
-asks ``Verifier.check``. A call is made for the first view and again only when the crop grew by
-``regrow_factor`` (a closer, more informative view), at most ``max_calls`` times per candidate.
+asks ``Verifier.check``. A call is made for the first view whose detection box is at least
+``min_box_side_px`` on its shorter side (a smaller object is not judged: the robot approaches it,
+D-032) and again only when the crop grew by ``regrow_factor`` (a closer, more informative view),
+at most ``max_calls`` times per candidate.
 Each answer ``q = P(yes)`` (first-token logprobs, calibrated on dev) is
 
 * accumulated per candidate (``CandidateEvidence``: log-odds around the calibration base rate,
@@ -44,6 +46,7 @@ class VerifyParams:
     crop_padding: float
     min_crop_px: int
     calibrated: bool            # False: identity calibrator + debug threshold (debug-only runs)
+    min_box_side_px: int = 0    # boxes smaller than this on their shorter side get no call (D-032)
 
 
 @dataclass
@@ -103,7 +106,10 @@ class Verifier:
         """One stop-range decision about ``cand`` (seen in this frame's ``rgb`` at ``cand.last_box``)."""
         st = self._state.setdefault(cand.cid, _CandState(CandidateEvidence(self.p.base_rate, self.view_discount)))
         crop, area = crop_box(rgb, cand.last_box, self.p.crop_padding, self.p.min_crop_px)
-        can_call = st.calls < self.p.max_calls and (st.calls == 0 or area >= self.p.regrow_factor * st.last_area)
+        x1, y1, x2, y2 = cand.last_box
+        big_enough = min(x2 - x1, y2 - y1) >= self.p.min_box_side_px
+        can_call = big_enough and st.calls < self.p.max_calls and \
+            (st.calls == 0 or area >= self.p.regrow_factor * st.last_area)
         p_raw = p_cal = None
         source, answer, latency = "none", "", 0.0
         if can_call:
@@ -169,7 +175,8 @@ def make_verifier(cfg: Mapping[str, Any], backend: Any, target: str, lang: str, 
     params = VerifyParams(stop_threshold=thr, reject_below=float(v["reject_below"]), base_rate=base,
                           max_calls=int(v["max_calls_per_candidate"]), regrow_factor=float(v["reverify_if_crop_area_grows"]),
                           max_wait_steps=int(v["max_wait_steps"]), crop_padding=float(v["crop_padding"]),
-                          min_crop_px=int(v["min_crop_px"]), calibrated=calibrated)
+                          min_crop_px=int(v["min_crop_px"]), calibrated=calibrated,
+                          min_box_side_px=int(v.get("min_box_side_px", 0)))
     belief = HypothesisBelief(list(hypotheses), list(prior_weights), BeliefParams(
         rho_right=float(b["rho_right"]), rho_wrong=float(b["rho_wrong"]), base_rate=base,
         evidence_power=float(b["evidence_power"]), weight_floor=float(b["weight_floor"]),
