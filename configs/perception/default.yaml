@@ -9,10 +9,11 @@ map:
   obstacle_min_height_m: 0.03     # floor noise tolerance; the effective minimum is max(this, navmesh climb)
   obstacle_margin_above_top_m: 0.03   # band top = embodiment top + this; anything higher is passable
   cliff_depth_m: 0.05             # points this far below the floor (holes, steps down) are obstacles (D-026)
+  missing_return_max_range_m: 1.5 # downward pixels with no depth return: drop-off where the floor should be (D-031); 0 = off
 frontiers:
   min_size_cells: 6
 detection:
   score_threshold: 0.35           # detector confidence to create / update an object candidate
   min_mask_pixels: 50             # mask pixels with valid depth needed to localise a detection
-  merge_radius_m: 0.6             # detections of the same query closer than this are one candidate
+  merge_radius_m: 0.6             # detections (of any query) closer than this are one candidate
   max_points_per_detection: 400

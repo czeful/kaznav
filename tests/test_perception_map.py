@@ -201,3 +201,28 @@ class TestPlanner:
         assert len(simple) < len(cells) / 5
         from kznav.policy.planner import _line_free
         assert all(_line_free(a, b, res.blocked) for a, b in zip(simple[:-1], simple[1:]))
+
+
+def test_missing_floor_return_is_a_drop_off():
+    """Downward pixels with no depth return mark where the floor should have been; others do nothing."""
+    depth = synth_depth()
+    dx, dy = ray_dirs()
+    down = dy < 0
+    z_floor = np.where(down, CAM_H / -np.where(down, dy, -1), np.inf)       # planar distance to the floor
+    hole = down & (z_floor >= 1.0) & (z_floor <= 1.2) & (np.abs(dx * z_floor) <= 0.2)   # 20 cm x 40 cm hole
+    depth[hole] = 0.0
+    for rmax, expect in ((1.5, True), (0.0, False), (0.8, False)):
+        m = OccupancyMap(params(p_occupied=0.8, missing_return_max_range_m=rmax), K, (0.0, 0.0))
+        for _ in range(2):                                    # two consistent observations (D-019)
+            m.update(depth, cam_T(), 0.0)
+        r, c = m.to_cell(np.array([0.0]), np.array([1.1]))
+        assert bool(m.occupied[r[0], c[0]]) is expect, rmax
+        r, c = m.to_cell(np.array([0.0]), np.array([0.6]))
+        assert not m.occupied[r[0], c[0]]                     # the floor before the hole stays free
+    # no-return pixels above the horizon (sky, open door) never mark anything
+    m = OccupancyMap(params(p_occupied=0.8, missing_return_max_range_m=1.5), K, (0.0, 0.0))
+    sky = synth_depth()
+    sky[~down] = 0.0
+    m.update(sky, cam_T(), 0.0)
+    m.update(sky, cam_T(), 0.0)
+    assert not m.occupied.any()

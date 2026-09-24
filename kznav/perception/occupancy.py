@@ -11,7 +11,11 @@ Update rule per frame (cells counted once per frame):
   for a camera inside the band such a ray runs below the band top, so nothing in the band blocks it;
 * obstacle endpoints get ``hit``; floor endpoints get ``miss``; a cell with both kinds of evidence
   in the same frame gets only the ``hit`` (the lowest points of a wall look like floor);
-* rays to points above the band clear nothing: the floor under them was not observed.
+* rays to points above the band clear nothing: the floor under them was not observed;
+* a pixel looking down with NO depth return where the floor plane should be (within
+  ``missing_return_max_range_m``) is a drop-off -- a hole, a stairwell, the edge of a scan: the
+  point where its ray meets the floor plane gets ``hit`` (D-031). Pixels at or above the horizon
+  (windows, open doors, far walls) never do.
 
 Map frame: x_map = Habitat x, y_map = -Habitat z (kznav.sim.frames). Grid row index grows with
 y_map, column index with x_map; the grid is centred on the episode start.
@@ -42,6 +46,7 @@ class MapParams:
     obstacle_min_height_m: float
     obstacle_max_height_m: float
     cliff_depth_m: float = 0.05
+    missing_return_max_range_m: float = 0.0      # 0 disables the drop-off rule
 
     @classmethod
     def from_config(cls, m: Mapping[str, Any], emb: Mapping[str, Any]) -> "MapParams":
@@ -53,6 +58,7 @@ class MapParams:
             obstacle_min_height_m=max(float(m["obstacle_min_height_m"]), float(emb["navmesh"]["agent_max_climb_m"])),
             obstacle_max_height_m=embodiment_top(emb) + float(m["obstacle_margin_above_top_m"]),
             cliff_depth_m=float(m["cliff_depth_m"]),
+            missing_return_max_range_m=float(m.get("missing_return_max_range_m", 0.0)),
         )
 
 
@@ -133,12 +139,34 @@ class OccupancyMap:
         """Integrate one depth frame; returns the (row, col) cells observed in it."""
         d = depth[self._v, self._u]
         valid = (d > 0) & (d <= self.p.max_range_m) & np.isfinite(d)
-        if not valid.any():
+        drops = self.missing_floor_points(depth, d, T_world_cam, floor_y)
+        if not valid.any() and len(drops) == 0:
             return np.zeros((0, 2), dtype=np.int64)
-        pts = to_world(backproject(depth, self.K, self._v[valid], self._u[valid]), T_world_cam)
-        return self.update_from_points(pts, T_world_cam[:3, 3], floor_y)
+        pts = to_world(backproject(depth, self.K, self._v[valid], self._u[valid]), T_world_cam) if valid.any() \
+            else np.zeros((0, 3))
+        return self.update_from_points(pts, T_world_cam[:3, 3], floor_y, drop_points=drops)
 
-    def update_from_points(self, pts_world: np.ndarray, cam_world: np.ndarray, floor_y: float) -> np.ndarray:
+    def missing_floor_points(self, depth: np.ndarray, d: np.ndarray, T_world_cam: np.ndarray,
+                             floor_y: float) -> np.ndarray:
+        """World points where downward rays of no-return pixels meet the floor plane (drop-offs)."""
+        rmax = self.p.missing_return_max_range_m
+        miss = (d == 0) | ~np.isfinite(d)
+        if rmax <= 0 or not miss.any():
+            return np.zeros((0, 3))
+        unit = to_world(backproject(np.ones_like(depth, dtype=np.float32), self.K, self._v[miss], self._u[miss]),
+                        T_world_cam)
+        cam = T_world_cam[:3, 3]
+        dirs = unit - cam[None, :]
+        down = dirs[:, 1] < -1e-6
+        if not down.any():
+            return np.zeros((0, 3))
+        t = (floor_y - cam[1]) / dirs[down, 1]
+        hit = cam[None, :] + t[:, None] * dirs[down]
+        horiz = np.hypot(hit[:, 0] - cam[0], hit[:, 2] - cam[2])
+        return hit[(t > 0) & (horiz <= rmax)]
+
+    def update_from_points(self, pts_world: np.ndarray, cam_world: np.ndarray, floor_y: float,
+                           drop_points: Optional[np.ndarray] = None) -> np.ndarray:
         cat = self.classify_points(pts_world, floor_y)
         ex, ey = pts_world[:, 0], -pts_world[:, 2]
         er, ec = self.to_cell(ex, ey)
@@ -147,6 +175,9 @@ class OccupancyMap:
         free_cells = self._ray_cells(cr[0], cc[0], er[clearing], ec[clearing])
         floor_end = np.stack([er[cat == 0], ec[cat == 0]], axis=1)
         hit_end = np.stack([er[cat == 1], ec[cat == 1]], axis=1)
+        if drop_points is not None and len(drop_points):
+            dr, dc = self.to_cell(drop_points[:, 0], -drop_points[:, 2])
+            hit_end = np.concatenate([hit_end, np.stack([dr, dc], axis=1)])   # no clearing along these rays
         free_cells = np.unique(np.concatenate([free_cells, floor_end]), axis=0) if len(free_cells) or len(floor_end) \
             else np.zeros((0, 2), dtype=np.int64)
         hit_cells = np.unique(hit_end, axis=0) if len(hit_end) else np.zeros((0, 2), dtype=np.int64)
