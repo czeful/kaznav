@@ -82,6 +82,13 @@ MSYS_NO_PATHCONV=1 wsl -d Ubuntu-22.04 --cd /mnt/c/Users/Bieber/Desktop/robot_si
 `python -m habitat_sim.utils.datasets_download --uids habitat_test_scenes --data-path ~/kznav_data`
 → 106 MB (`apartment_1`, `skokloster-castle`, `van-gogh-room` с navmesh).
 
+### 6. MP4 (H.264) для видео
+
+В `habitat_env` стоял conda-пакет `imageio-ffmpeg` без бинарника ffmpeg (ожидает системный).
+Исправление: `pip install --force-reinstall --no-deps "imageio-ffmpeg==0.6.0"` — колесо со
+встроенным ffmpeg 7.0.2 (static). OpenCV сам пишет только `mp4v`, который стандартный плеер
+Windows может не открыть.
+
 ### Не сделано / известно
 
 - Docker не установлен (пользователь установит). Dockerfile для Linux-сервера с

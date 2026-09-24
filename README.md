@@ -42,6 +42,7 @@ kznav/
   policy/      belief (байес по гипотезам), calibration (калибраторы, порог, защита от утечки dev→test),
                controller (pure pursuit для дифференциального привода)
   run/         логирование (JSONL + хранилище изображений), манифест, сборка конфига
+  report/      video (кадр из панелей + карта сверху, запись MP4)
   sim/         env (обёртка Habitat для обоих embodiment), robot (URDF-робот на моторах),
                urdf (генерация из конфига), diff_drive, frames, arena, noise,
                validation (физические проверки), mesh_drive (езда по сканам, D-003)
@@ -50,7 +51,7 @@ prompts/       <набор>/<задача>/v<N>.yaml — хеш каждого �
 lexicon/       синонимы категорий по языкам (hm3d_objectnav.yaml — черновик, нужна проверка носителем)
 tests/         pytest; tests/data/pilot_verification.jsonl — сырые данные пилота для сверки ECE
 tools/         wsl.sh (запуск в habitat_env с настройками рендера), check_render.py,
-               validate_robot.py, mesh_drive_test.py, compare_views.py
+               validate_robot.py, mesh_drive_test.py, compare_views.py, demo_drive.py
 env/           точный состав habitat_env (conda + pip freeze)
 qolda check/   пилот (отдельный git-репозиторий, не входит в этот)
 ```
@@ -79,6 +80,10 @@ bash tools/wsl.sh python tools/validate_robot.py
 # езда робота по собственному navmesh на сканах (D-003, ~3 мин) -> runs/mesh_drive/<время>/summary.md
 # нужны тестовые сцены: python -m habitat_sim.utils.datasets_download --uids habitat_test_scenes --data-path ~/kznav_data
 bash tools/wsl.sh python tools/mesh_drive_test.py
+
+# демо-видео: робот проезжает маршруты по сцене (камера, глубина, карта сверху) -> runs/demo/<время>/demo.mp4
+# это НЕ эпизод ObjectNav: робот едет по своему navmesh, без восприятия и без модели
+bash tools/wsl.sh python tools/demo_drive.py --routes 3
 
 # кадр робота (0.15 м) рядом с кадром агента Habitat (0.88 м) из тех же точек
 bash tools/wsl.sh python tools/compare_views.py --scene ~/kznav_data/scene_datasets/habitat-test-scenes/apartment_1.glb --out views.png
