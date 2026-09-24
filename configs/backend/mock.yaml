@@ -1,0 +1,24 @@
+# GPU-free deterministic backend for tests and smoke runs. Never used for reported numbers.
+name: mock
+type: mock
+model_id: mock-0
+mock:
+  seed: 0
+  malformed_first_attempt_rate: 0.0
+  verify_mode: hash                # hash | constant
+  verify_p: 0.5
+  lexicon: lexicon/hm3d_objectnav.yaml
+parse:
+  max_attempts: 3
+  min_hypotheses: 1
+  max_hypotheses: 8
+capabilities:
+  supports_logprobs: true
+  supports_images: true
+  max_context_tokens: null
+  cost_per_call_usd: null
+prompts:
+  parse_goal: default/parse_goal/v1
+  verify_candidate: default/verify_candidate/v1
+  describe: default/describe/v1
+warmup_calls: 0

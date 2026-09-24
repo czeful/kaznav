@@ -1,0 +1,48 @@
+# Accepted names for the 6 HM3D ObjectNav v1 categories.
+# en: phrases that count as naming the category in an English hypothesis (phrase containment,
+#     see kznav/language/lexicon.py). kk / ru: accepted dictionary forms of the parsed target.
+# Kazakh / Russian forms are a DRAFT and must be checked by a native speaker before reported runs.
+review_status: draft_needs_native_review
+categories:
+  - name: chair
+    word_type: universal
+    dataset_labels: [chair]
+    names:
+      en: [chair, armchair]
+      kk: [орындық, кресло]
+      ru: [стул, кресло]
+  - name: bed
+    word_type: universal
+    dataset_labels: [bed]
+    names:
+      en: [bed]
+      kk: [төсек, кереует]
+      ru: [кровать]
+  - name: plant
+    word_type: universal
+    dataset_labels: [plant]
+    names:
+      en: [plant, houseplant, potted plant, flower]
+      kk: [өсімдік, гүл]
+      ru: [растение, цветок]
+  - name: toilet
+    word_type: universal
+    dataset_labels: [toilet]
+    names:
+      en: [toilet, toilet bowl]
+      kk: [унитаз, дәретхана]
+      ru: [унитаз]
+  - name: tv_monitor
+    word_type: universal
+    dataset_labels: [tv_monitor]
+    names:
+      en: [tv, television, monitor, tv screen, screen]
+      kk: [теледидар, монитор]
+      ru: [телевизор, монитор]
+  - name: sofa
+    word_type: universal
+    dataset_labels: [sofa]
+    names:
+      en: [sofa, couch]
+      kk: [диван]
+      ru: [диван]

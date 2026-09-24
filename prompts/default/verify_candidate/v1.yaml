@@ -1,0 +1,41 @@
+id: default/verify_candidate
+version: 1
+task: verify_candidate
+review_status: pending_native_review
+provenance: >
+  System text for kk taken from the pilot (VERIFY_SYSTEM). The question was rephrased
+  to "... болып табыла ма?" so that the question particle is always "ма" regardless
+  of the target word (the pilot always used "ма", which is ungrammatical after
+  e.g. "қазан" -> "ба", "сандық" -> "па"). ru / en blocks are direct equivalents.
+  Answer options must start with different letters (checked on load): the first
+  generated token of byte-level BPE models is often a single letter.
+lang_map:
+  kk: kk
+  kk_ru: kk
+  ru: ru
+  en: en
+languages:
+  kk:
+    system: >-
+      Сен роботтың көру жүйесіндегі тексеруші модульсің. Саған сурет үзіндісі мен зат
+      атауы беріледі. Тек «иә» немесе «жоқ» деп жауап бер, басқа ештеңе жазба.
+    user_template: 'Суреттегі негізгі зат «{target}» болып табыла ма? Тек «иә» немесе «жоқ» деп жауап бер.'
+    options:
+      "yes": [иә, ия]
+      "no": [жоқ]
+  ru:
+    system: >-
+      Ты модуль проверки в системе зрения робота. Тебе дают фрагмент изображения и
+      название предмета. Отвечай только «да» или «нет», ничего больше.
+    user_template: 'Основной предмет на изображении — это «{target}»? Ответь только «да» или «нет».'
+    options:
+      "yes": [да]
+      "no": [нет]
+  en:
+    system: >-
+      You are the verification module of a robot's vision system. You are given an image
+      crop and an object name. Answer only "yes" or "no", nothing else.
+    user_template: 'Is the main object in the image a "{target}"? Answer only "yes" or "no".'
+    options:
+      "yes": ["yes"]
+      "no": ["no"]

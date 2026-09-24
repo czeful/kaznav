@@ -1,0 +1,19 @@
+# Pilot study is its own git repository; referenced, not vendored.
+qolda check/
+
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Run outputs, datasets, weights — large and/or licensed, never committed.
+runs/
+data/
+*.glb
+*.basis
+*.navmesh
+*.pth
+*.ckpt
+*.safetensors

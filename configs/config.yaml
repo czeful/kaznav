@@ -1,0 +1,26 @@
+# Root config. Every tunable number of the pipeline lives in this tree; the code has none.
+# Switch a component with one override, e.g.:  backend=qolda dataset=hm3d_ovon_val_unseen embodiment=habitat_agent
+defaults:
+  - embodiment: wheeled_vacuum
+  - dataset: hm3d_objectnav_v1_val
+  - backend: mock
+  - policy: default
+  - eval: default
+  - _self_
+
+run:
+  name: ${backend.name}__${dataset.name}__${embodiment.name}
+  seed: 0
+  output_root: runs
+  resume: true
+  episodes:
+    limit: null           # null = the whole split
+    subset_file: null     # optional text file with episode ids (dev / test subsets)
+  video:
+    enabled: true
+    fraction: 0.05        # deterministic subsample of episodes (by seed) that get a video
+
+paths:
+  # Datasets live on the WSL ext4 disk (9P access to /mnt/c is slow for GLB loading).
+  data_root: ${oc.env:KZNAV_DATA_ROOT,data}
+  prompt_root: prompts

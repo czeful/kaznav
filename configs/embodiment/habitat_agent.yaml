@@ -1,0 +1,42 @@
+# Standard Habitat ObjectNav agent (habitat-lab 0.2.4 objectnav_hm3d.yaml).
+# Used for the literature-comparable table (D-001): same pipeline, standard embodiment,
+# standard episodes, standard discrete action space and step limit.
+name: habitat_agent
+kind: point_agent
+
+body:
+  radius_m: 0.18
+  height_m: 0.88
+
+drive:
+  type: discrete
+  forward_step_m: 0.25
+  turn_angle_deg: 30.0
+  tilt_angle_deg: 30.0
+
+physics:
+  mode: none                  # habitat-lab default: navmesh sliding, no dynamics
+
+navmesh:
+  source: dataset             # the navmesh shipped with the scene dataset
+
+sensors:
+  rgbd:
+    resolution_hw: [480, 640]
+    hfov_deg: 79.0
+    mount:
+      height_m: 0.88
+      forward_m: 0.0
+      pitch_deg: 0.0
+    depth:
+      min_m: 0.5
+      max_m: 5.0
+  odometry:
+    enabled: false
+  imu:
+    enabled: false
+
+noise:
+  depth: {model: none}
+  actuation: {model: none}
+  odometry_drift: {model: none}

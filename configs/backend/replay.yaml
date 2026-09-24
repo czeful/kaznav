@@ -1,0 +1,17 @@
+# Re-run navigation / metrics from recorded model calls, without the model.
+# Usage: backend=replay backend.replay.sources=[runs/<run_id>/vlm_calls.jsonl] backend.prompts=...
+name: replay
+type: replay
+model_id: replay
+replay:
+  sources: []
+capabilities:
+  supports_logprobs: true
+  supports_images: true
+  max_context_tokens: null
+  cost_per_call_usd: null
+prompts:                           # must equal the recorded run's prompts, or lookups miss (by design)
+  parse_goal: default/parse_goal/v1
+  verify_candidate: default/verify_candidate/v1
+  describe: default/describe/v1
+warmup_calls: 0

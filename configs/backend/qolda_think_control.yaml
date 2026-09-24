@@ -1,0 +1,11 @@
+# Think-mode CONTROL measurement only (brief §6). Never used in main runs.
+defaults:
+  - qolda
+  - _self_
+
+name: qolda_think_control
+extra_body:
+  enable_thinking: true
+control_think_measurement: true
+max_tokens:
+  parse_goal: 4096

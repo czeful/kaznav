@@ -1,0 +1,44 @@
+# Qolda (issai/Qolda, 4.3B: InternViT-300M + Qwen3-4B), Apache 2.0.
+name: qolda
+type: qolda
+model_id: qolda-4b                 # served name as reported by GET {base_url}/models
+hf_repo: issai/Qolda
+# What the server actually loaded — recorded in every manifest. The pilot server
+# (qolda check/local_server/qolda_server.py) loads bf16; see docs/decisions.md D-006.
+weights_precision: bf16
+server:
+  impl: qolda_fastapi              # lmdeploy 0.17.0 fails on Qolda's config (pilot INSTALL_LOG)
+  image_max_tiles: 12              # InternVL dynamic tiling on the server; OPEN (D-007)
+base_url: http://localhost:23333/v1
+api_key: EMPTY
+http:
+  timeout_s: 60
+  max_attempts: 3
+  backoff_s: 1.0
+temperature: 0.0
+seed: 0
+max_tokens:
+  parse_goal: 512
+  verify_candidate: 4
+  describe: 256
+top_logprobs: 10
+extra_body:
+  enable_thinking: false           # MANDATORY, explicit in every request (pilot: Think loses on every axis)
+control_think_measurement: false   # true only in the dedicated Think control run
+image:
+  format: png                      # lossless: the model sees exactly the logged crop
+  max_side: null
+parse:
+  max_attempts: 3
+  min_hypotheses: 1
+  max_hypotheses: 8
+capabilities:
+  supports_logprobs: true
+  supports_images: true
+  max_context_tokens: 4096         # --session-len of the pilot server config
+  cost_per_call_usd: null          # local model: cost is reported as measured latency
+prompts:
+  parse_goal: default/parse_goal/v1
+  verify_candidate: default/verify_candidate/v1
+  describe: default/describe/v1
+warmup_calls: 3

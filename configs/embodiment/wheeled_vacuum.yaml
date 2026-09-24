@@ -1,0 +1,54 @@
+# Low wheeled household robot (robot-vacuum form factor). See docs/decisions.md D-002..D-005.
+name: wheeled_vacuum
+kind: wheeled
+
+body:
+  radius_m: 0.17              # diameter 0.34 m
+  height_m: 0.12
+  mass_kg: 4.0
+  ground_clearance_m: 0.02
+
+drive:
+  type: differential          # 2 driven wheels + 2 passive casters (D-002)
+  wheel_radius_m: 0.035
+  wheel_base_m: 0.23          # distance between the driven wheels
+  wheel_friction: 0.9
+  caster_friction: 0.05
+  limits:
+    max_lin_vel_mps: 0.30
+    max_ang_vel_radps: 1.5
+    max_lin_acc_mps2: 0.5
+    max_ang_acc_radps2: 3.0
+
+physics:
+  mode: articulated           # articulated (URDF + wheel motors) | rigid_body (fallback, D-003)
+  physics_dt_s: 0.004166667   # 240 Hz
+  control_dt_s: 0.1           # velocity commands at 10 Hz
+
+navmesh:
+  source: recompute           # the standard navmesh is built for the 0.88 m agent (D-001)
+  agent_radius_m: 0.17
+  agent_height_m: 0.15        # body + camera mount
+  agent_max_climb_m: 0.02     # door thresholds higher than this are not traversable
+  agent_max_slope_deg: 10.0
+
+sensors:
+  rgbd:
+    resolution_hw: [480, 640]
+    hfov_deg: 69.0            # D435-class colour camera (D-004)
+    mount:
+      height_m: 0.15
+      forward_m: 0.14         # at the front bumper
+      pitch_deg: 0.0          # OPEN (D-004): fixed in stage 3 from a goal-visibility check on dev scenes
+    depth:
+      min_m: 0.2
+      max_m: 5.0
+  odometry:
+    enabled: false
+  imu:
+    enabled: false
+
+noise:                        # all off for baseline runs; interfaces exist for the robustness study
+  depth: {model: none}        # none | redwood
+  actuation: {model: none}    # none | locobot
+  odometry_drift: {model: none}

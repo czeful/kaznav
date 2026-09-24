@@ -1,0 +1,7 @@
+id: default/describe
+version: 1
+task: describe
+review_status: n/a
+provenance: Free-form captioning for diagnostics and warm-up; not used in decisions.
+system: null
+user_template: "{prompt}"

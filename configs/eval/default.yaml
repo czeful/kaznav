@@ -1,0 +1,20 @@
+bootstrap:
+  n_boot: 10000
+  level: 0.95
+  seed: 0
+calibration:
+  n_bins: 10
+  ece_default: binary                # binary | top_label (top_label only to reproduce the pilot)
+success:
+  require_visible_at_stop: false     # visibility is encoded in the goal view points
+collisions:
+  merge_gap_s: 0.5
+stuck:
+  window_s: 3.0
+  min_displacement_m: 0.05
+  min_yaw_change_rad: 0.1
+  min_cmd_lin: 0.05
+  min_cmd_ang: 0.2
+  abort_after_s: 30.0                # stuck longer than this ends the episode (Termination.STUCK_ABORT)
+latency:
+  percentiles: [50, 95]

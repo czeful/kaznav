@@ -1,0 +1,348 @@
+# Kazakh object vocabulary from the pilot (qolda check/configs/objects.yaml), converted to the
+# kznav lexicon format without changing any word or synonym. Used for the cultural-word analyses
+# and for mapping cultural words onto HM3D-OVON categories (stage 5).
+review_status: from_pilot
+source: qolda check/configs/objects.yaml
+categories:
+- name: қазан
+  word_type: cultural
+  names:
+    en:
+    - cast-iron cauldron
+    - cauldron
+    - cooking pot
+    - cooking cauldron
+    - kazan
+    kk:
+    - қазан
+- name: сандық
+  word_type: cultural
+  names:
+    en:
+    - wooden chest
+    - chest
+    - trunk
+    - storage chest
+    kk:
+    - сандық
+- name: кебеже
+  word_type: cultural
+  names:
+    en:
+    - wooden pantry chest
+    - pantry chest
+    - food storage chest
+    - wooden food chest
+    - kebezhe
+    kk:
+    - кебеже
+- name: дастархан
+  word_type: cultural
+  names:
+    en:
+    - dastarkhan
+    - low dining table
+    - festive tablecloth
+    - floor dining spread
+    kk:
+    - дастархан
+- name: шаңырақ
+  word_type: cultural
+  names:
+    en:
+    - yurt roof crown
+    - shanyrak
+    - yurt dome
+    - roof ring
+    kk:
+    - шаңырақ
+- name: бесік
+  word_type: cultural
+  names:
+    en:
+    - wooden baby cradle
+    - cradle
+    - baby cradle
+    - crib
+    - wooden cradle
+    kk:
+    - бесік
+- name: домбыра
+  word_type: cultural
+  names:
+    en:
+    - dombra
+    - dombyra
+    - kazakh two-string lute
+    - traditional lute
+    kk:
+    - домбыра
+- name: сырмақ
+  word_type: cultural
+  names:
+    en:
+    - patterned felt rug
+    - syrmak
+    - felt rug
+    - felt carpet
+    kk:
+    - сырмақ
+- name: түскиіз
+  word_type: cultural
+  names:
+    en:
+    - embroidered wall tapestry
+    - tuskiiz
+    - wall tapestry
+    - embroidered wall carpet
+    - wall hanging
+    kk:
+    - түскиіз
+- name: саба
+  word_type: cultural
+  names:
+    en:
+    - leather kumis vessel
+    - saba
+    - leather churn
+    - kumis flask
+    kk:
+    - саба
+- name: көрпе
+  word_type: cultural
+  names:
+    en:
+    - quilted padded blanket
+    - korpe
+    - quilted blanket
+    - padded blanket
+    - quilt
+    kk:
+    - көрпе
+- name: самауырын
+  word_type: cultural
+  names:
+    en:
+    - samovar
+    - tea urn
+    - samauryn
+    kk:
+    - самауырын
+- name: ошақ
+  word_type: cultural
+  names:
+    en:
+    - open-fire tripod stove
+    - hearth
+    - open-fire stove
+    - tripod stove
+    - fire pit stand
+    kk:
+    - ошақ
+- name: шапан
+  word_type: cultural
+  names:
+    en:
+    - traditional quilted robe
+    - chapan
+    - quilted robe
+    - traditional robe
+    - kazakh coat
+    kk:
+    - шапан
+- name: кесе
+  word_type: cultural
+  names:
+    en:
+    - handleless kazakh tea bowl
+    - kese
+    - tea bowl
+    - handleless cup
+    - kazakh tea bowl
+    kk:
+    - кесе
+- name: торсық
+  word_type: cultural
+  names:
+    en:
+    - leather kumis flask
+    - torsyk
+    - leather flask
+    - kumis flask
+    - leather bottle
+    kk:
+    - торсық
+- name: тұсқиіз
+  word_type: cultural
+  names:
+    en:
+    - decorative wall carpet
+    - tuskiiz
+    - wall carpet
+    - tapestry
+    kk:
+    - тұсқиіз
+- name: күміс білезік
+  word_type: cultural
+  names:
+    en:
+    - silver bracelet
+    - ornamented silver bracelet
+    - traditional bracelet
+    kk:
+    - күміс білезік
+- name: кресло
+  word_type: universal
+  names:
+    en:
+    - armchair
+    - chair
+    - easy chair
+    kk:
+    - кресло
+- name: диван
+  word_type: universal
+  names:
+    en:
+    - sofa
+    - couch
+    kk:
+    - диван
+- name: үстел
+  word_type: universal
+  names:
+    en:
+    - table
+    - desk
+    kk:
+    - үстел
+- name: орындық
+  word_type: universal
+  names:
+    en:
+    - chair
+    - seat
+    - stool
+    kk:
+    - орындық
+- name: тоңазытқыш
+  word_type: universal
+  names:
+    en:
+    - refrigerator
+    - fridge
+    kk:
+    - тоңазытқыш
+- name: теледидар
+  word_type: universal
+  names:
+    en:
+    - television
+    - tv
+    - tv set
+    kk:
+    - теледидар
+- name: кітап сөресі
+  word_type: universal
+  names:
+    en:
+    - bookshelf
+    - bookcase
+    - book shelf
+    kk:
+    - кітап сөресі
+- name: айна
+  word_type: universal
+  names:
+    en:
+    - mirror
+    - wall mirror
+    kk:
+    - айна
+- name: шам
+  word_type: universal
+  names:
+    en:
+    - lamp
+    - table lamp
+    - light
+    kk:
+    - шам
+- name: кілем
+  word_type: universal
+  names:
+    en:
+    - carpet
+    - rug
+    kk:
+    - кілем
+- name: жастық
+  word_type: universal
+  names:
+    en:
+    - pillow
+    - cushion
+    kk:
+    - жастық
+- name: шкаф
+  word_type: universal
+  names:
+    en:
+    - wardrobe
+    - cabinet
+    - closet
+    kk:
+    - шкаф
+- name: себет
+  word_type: universal
+  names:
+    en:
+    - basket
+    - wicker basket
+    kk:
+    - себет
+- name: ваза
+  word_type: universal
+  names:
+    en:
+    - vase
+    kk:
+    - ваза
+- name: термос
+  word_type: universal
+  names:
+    en:
+    - thermos
+    - vacuum flask
+    kk:
+    - термос
+- name: есік
+  word_type: universal
+  names:
+    en:
+    - door
+    kk:
+    - есік
+- name: төсек
+  word_type: universal
+  names:
+    en:
+    - bed
+    kk:
+    - төсек
+- name: өсімдік
+  word_type: universal
+  names:
+    en:
+    - plant
+    - houseplant
+    - potted plant
+    kk:
+    - өсімдік
+- name: дәретхана
+  word_type: universal
+  names:
+    en:
+    - toilet
+    kk:
+    - дәретхана

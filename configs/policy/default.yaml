@@ -1,0 +1,16 @@
+belief:
+  # rho_* are estimated on the dev split (stage 5); these are placeholders for debugging.
+  rho_right: 0.7
+  rho_wrong: 0.1
+  evidence_power: 1.0
+  weight_floor: 0.01
+  view_discount: 0.5
+
+stop:
+  # Fitted on dev ONLY (kznav.policy.calibration). Required for reported runs;
+  # a run without it is debug-only and says so in its manifest.
+  calibration_file: null
+
+verification:
+  max_calls_per_candidate: 3
+  reverify_if_crop_area_grows: 2.0   # re-ask only when the crop got this much bigger (closer view)

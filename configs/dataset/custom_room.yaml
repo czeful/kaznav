@@ -1,0 +1,12 @@
+# Hand-built room for debugging, demo videos and qualitative figures.
+# role: debug — its numbers NEVER enter the main tables of the paper.
+name: custom_room
+split: demo
+role: debug
+scenes_dir: ${paths.data_root}/custom_room
+scene_dataset_config: ${paths.data_root}/custom_room/custom_room.scene_dataset_config.json
+episodes_path: ${paths.data_root}/custom_room/episodes.json.gz
+success_distance_m: 0.1
+distance_to: view_points
+max_episode_steps: 500
+lexicon: lexicon/hm3d_objectnav.yaml
