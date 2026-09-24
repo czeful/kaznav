@@ -22,6 +22,7 @@ arm gd_value        detector=grounding_dino_tiny value_encoder=siglip2_base "$@"
 arm qolda_kk_noverif --lang kk --no-verify detector=grounding_dino_tiny value_encoder=siglip2_base "$@"
 arm qolda_kk        --lang kk detector=grounding_dino_tiny value_encoder=siglip2_base "$@"
 arm qolda_kkru      --lang kk_ru detector=grounding_dino_tiny value_encoder=siglip2_base "$@"
+arm gd_value_thr060 detector=grounding_dino_tiny value_encoder=siglip2_base perception.detection.score_threshold=0.6 "$@"
 echo "arms: $(cat "$list" | tr '\n' ' ')"
 python tools/compare_runs.py --ref gd_value --title "Debug matrix ${stamp} ($*)" \
     --out "runs/compare/matrix_${stamp}" $(cat "$list")

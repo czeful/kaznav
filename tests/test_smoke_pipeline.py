@@ -83,3 +83,26 @@ def test_view_point_grid_must_cover_success_distance():
     g = GoalInstance("chair_7", 7, "chair", [1.85, 0.45, -2.05], list(GOAL.lo), list(GOAL.hi))
     with pytest.raises(ValueError, match="grid step"):
         compute_view_points(env, g, success_radius_m=1.0, grid_step_m=0.2, min_pixels=20, max_snap_m=0.05)
+
+
+def test_episode_result_does_not_depend_on_previous_episodes():
+    """Same episode alone and after another episode in the same process/env -> identical trajectory."""
+    cfg = small_cfg("wheeled_vacuum", steps=120)
+    cfg["perception"]["detection"]["max_points_per_detection"] = 20     # make the point subsampling RNG matter
+
+    def run(eps):
+        env = MockEnv(cfg, room_with_boxes(6.0, extra=[GOAL, TABLE]))
+        ep = episode_for(env, cfg)
+        other = ObjectNavEpisode("mock_other", "mock_room", "mock", "smoke", [1.0, 0.0, 1.5], 2.0, "chair",
+                                 ep.goals, ep.start_geodesic_m, cfg["embodiment"]["name"])
+        policy = ObjectNavPolicy(cfg, create_detector(cfg["detector"]), create_segmenter(cfg["segmenter"]),
+                                 ["chair"], env.K)
+        ex = Executor(env, cfg)
+        out = None
+        for e in ([other] if eps == 2 else []) + [ep]:
+            out = run_episode(env, policy, ex, e, cfg, run_id="smoke", use_oracle_aux=True)
+        return out
+
+    (a, ta), (b, tb) = run(1), run(2)
+    assert a.num_decision_steps == b.num_decision_steps and a.outcome == b.outcome
+    np.testing.assert_allclose(np.asarray(ta.positions), np.asarray(tb.positions))

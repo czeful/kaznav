@@ -11,6 +11,7 @@ goal view points, ground-truth semantics for the funnel columns, stuck and colli
 """
 from __future__ import annotations
 
+import hashlib
 import math
 import time
 from dataclasses import dataclass, field
@@ -27,6 +28,13 @@ from ..policy.objectnav import Decision, ObjectNavPolicy
 from ..policy.verification import event_dict
 from ..sim.episodes import ObjectNavEpisode, footprint_distance
 from ..sim.frames import wrap_angle
+
+
+def episode_seed(run_seed: int, episode_id: str) -> int:
+    """Deterministic per-episode seed: an episode's randomness depends on (run seed, episode id) only,
+    never on which episodes the same process ran before it."""
+    h = hashlib.sha256(f"{int(run_seed)}:{episode_id}".encode("utf-8")).digest()
+    return int.from_bytes(h[:8], "little")
 
 
 class Executor:
@@ -169,7 +177,7 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
 
     obs = env.reset(ep.start_position, ep.start_yaw)
     start_height = float(obs.position[1])
-    policy.reset(obs.pose)
+    policy.reset(obs.pose, seed=episode_seed(int(cfg["run"]["seed"]), ep.episode_id))
     executor.reset()
     recoveries = 0
     trace = EpisodeTrace(positions=[tuple(obs.position)], poses=[obs.pose])

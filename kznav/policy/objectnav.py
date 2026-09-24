@@ -89,7 +89,8 @@ class ObjectNavPolicy:
         self.last_frontiers: List[Frontier] = []
         self.last_plan: Optional[PlanResult] = None
 
-    def reset(self, pose: Tuple[float, float, float]) -> None:
+    def reset(self, pose: Tuple[float, float, float], seed: Optional[int] = None) -> None:
+        """Start an episode. ``seed`` makes the episode independent of which episodes ran before it."""
         self.map = OccupancyMap(self.map_params, self.K, (pose[0], pose[1]))
         self.value_map = ValueMap(self.map.log_odds.shape, self.map.res, self.map.x0, self.map.y0, self.hfov) \
             if self.value_encoder is not None else None
@@ -97,7 +98,7 @@ class ObjectNavPolicy:
         self.last_value = None
         self.last_verify = None
         self._rgb = None
-        self.memory.reset()
+        self.memory.reset(seed)
         self.step_idx = 0
         self.spin_left = self.spin_steps_total
         self.no_plan = 0

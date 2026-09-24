@@ -75,8 +75,11 @@ class ObjectMemory:
         self.candidates: List[ObjectCandidate] = []
         self._rng = np.random.default_rng(rng_seed)
 
-    def reset(self) -> None:
+    def reset(self, seed: Optional[int] = None) -> None:
+        """Forget all candidates; with ``seed``, restart the point-subsampling RNG (per-episode determinism)."""
         self.candidates = []
+        if seed is not None:
+            self._rng = np.random.default_rng(seed)
 
     def localize(self, mask: np.ndarray, depth: np.ndarray, T_world_cam: np.ndarray) -> Optional[np.ndarray]:
         """World points of a mask with valid depth (subsampled), or None."""
