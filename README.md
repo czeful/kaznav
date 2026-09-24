@@ -31,12 +31,18 @@ SoftSPL, DTS) с доверительными интервалами и парн
 
 Полный цикл с казахской командой работает на отладочной сцене:
 
-- команда («Банан қайда? Тауып бер.») → Qolda → английские гипотезы с весами;
+- команда («Банан тұрған жерге бар.») → Qolda → английские гипотезы с весами;
 - гипотезы → GroundingDINO, по ним же SigLIP2 строит карту ценности;
 - кандидат → кроп → Qolda «иә/жоқ» с логпробами → байесовское обновление → остановка.
 
-Числа отладочной сцены — проверка конвейера, не результаты статьи: сцена одна,
-верификатор без калибровки, команды — черновик без проверки носителем.
+Отладочная матрица: 7 плеч × 20 одинаковых эпизодов, `runs/compare/matrix_wheeled_v2`, D-035.
+
+- Без проверки GroundingDINO останавливается у чужого предмета в 19 из 20 эпизодов.
+- С проверкой Qolda — 1 ложная остановка на 40 эпизодов; SR 30 % (kk) и 20 % (kk-ru) против 5 %.
+- Полный повтор плеч воспроизводит матрицу эпизод в эпизод (D-036).
+
+Числа отладочные, не результаты статьи: одна сцена, верификатор без калибровки,
+команды — черновик без проверки носителем.
 
 ## Структура
 
@@ -121,6 +127,11 @@ bash tools/wsl.sh bash tools/with_gpu_log.sh runs/servers/gpu.csv python tools/r
 # матрица плеч на одних и тех же эпизодах + парные сравнения -> runs/compare/matrix_<время>/comparison.md
 bash tools/wsl.sh bash tools/run_debug_matrix.sh
 python tools/compare_runs.py --ref gd_value gd_value=runs/debug/<a> qolda_kk=runs/debug/<b>
+
+# видео всех эпизодов плеч (полный повтор = проверка воспроизводимости), ролик и страница результатов
+bash tools/wsl.sh bash tools/run_video_arms.sh
+bash tools/wsl.sh python tools/make_demo_reel.py --out runs/demo/reel.mp4 <video.mp4>="подпись|вторая строка" ...
+python tools/make_results_page.py --compare runs/compare/<dir> --parse runs/language/parse_<t>     --verify runs/language/verify_<t> --out runs/page/index.html --video reel.mp4 --poster poster.png
 ```
 
 ### Выбор компонентов
