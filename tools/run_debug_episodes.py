@@ -4,7 +4,7 @@
     e.g.  ... detector=grounding_dino_tiny value_encoder=siglip2_base --lang kk      (needs the Qolda server)
 
 --lang none (default): the detector gets the English category name, no language model.
---lang kk | kk_ru | en: the command (commands/<dataset>.yaml templates, round-robin) is parsed by the
+--lang kk | kk_ru | en: the command (commands/<dataset>.yaml templates, round-robin, or --command "...") is parsed by the
     configured VLM backend; its hypotheses are the detector queries and value-map weights, and the
     VLM verifies each candidate before the stop (unless --no-verify).
 Numbers from this tool are pipeline checks (role: debug), never paper results.
@@ -112,6 +112,8 @@ def main() -> None:
     ap.add_argument("--lang", default="none", choices=["none", "kk", "kk_ru", "en"])
     ap.add_argument("--no-verify", action="store_true", help="with --lang: stop without VLM verification")
     ap.add_argument("--only", default="", help="comma-separated episode ids to run (after sampling)")
+    ap.add_argument("--command", default="", help="with --lang: your own command text for every episode run "
+                    "(pick the episode whose object it names with --only)")
     ap.add_argument("overrides", nargs="*")
     args = ap.parse_args()
     use_lang = args.lang != "none"
@@ -132,7 +134,10 @@ def main() -> None:
     lexicon = Lexicon.load(REPO / ds["lexicon"])
     backend = goals = templates = None
     calls = ListSink()
-    extra = {"role": "debug", "lang": args.lang, "verify": use_lang and not args.no_verify}
+    if args.command and not use_lang:
+        raise SystemExit("--command needs --lang kk | kk_ru | en")
+    extra = {"role": "debug", "lang": args.lang, "verify": use_lang and not args.no_verify,
+             "custom_command": args.command or None}
     if use_lang:
         backend = create_backend(cfg["backend"], sink=TeeSink(logger.call_sink, calls))
         backend.context.run_id = run_id
@@ -184,7 +189,7 @@ def main() -> None:
                     continue
                 lg = None
                 if use_lang:
-                    cid, text = command_for(templates, lexicon, args.lang, ep.goal_category, i_cat)
+                    cid, text = ("custom", args.command) if args.command else                         command_for(templates, lexicon, args.lang, ep.goal_category, i_cat)
                     lg = goals.get(command_id=cid, text=text, lang=args.lang, category=ep.goal_category,
                                    word_type=lexicon.categories[ep.goal_category].word_type)
                     lang_rows.append({"episode_id": ep.episode_id, **lg.summary()})
