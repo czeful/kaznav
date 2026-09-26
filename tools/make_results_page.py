@@ -25,7 +25,8 @@ from kznav.eval.stats import mean_ci, wilson_ci  # noqa: E402
 
 SHORT = {"oracle": "Оракул", "gd_nearest": "GDINO, ближайший фронтир", "gd_value": "GDINO + карта ценности",
          "gd_value_thr060": "GDINO + карта, порог 0.6", "qolda_kk_noverif": "Qolda kk, без проверки",
-         "qolda_kk": "Qolda kk + проверка", "qolda_kkru": "Qolda kk-ru + проверка"}
+         "qolda_kk": "Qolda kk + проверка", "qolda_kkru": "Qolda kk-ru + проверка",
+         "qolda_en_noverif": "Qolda en, без проверки", "qolda_en": "Qolda en + проверка"}
 ARMS = {  # label -> (display name, group)
     "oracle": ("Оракул: семантика симулятора", "ref"),
     "gd_nearest": ("GroundingDINO, ближайший фронтир", "det"),
@@ -34,6 +35,8 @@ ARMS = {  # label -> (display name, group)
     "qolda_kk_noverif": ("Qolda, казахская команда, без проверки", "vlm0"),
     "qolda_kk": ("Qolda, казахская команда + проверка", "vlm"),
     "qolda_kkru": ("Qolda, смешанная kk-ru команда + проверка", "vlm"),
+    "qolda_en_noverif": ("Qolda, английская команда, без проверки", "vlm0"),
+    "qolda_en": ("Qolda, английская команда + проверка", "vlm"),
 }
 CATS = {"banana": "банан", "mustard bottle": "горчица", "pitcher": "кувшин", "power drill": "дрель"}
 E = html.escape
@@ -149,6 +152,44 @@ def main() -> None:
         g = df[df.arm == a]
         cat_rows.append([E(ARMS[a][0])] + [f"{int(g[g.goal_category == c].success.sum())}/{int((g.goal_category == c).sum())}"
                                            for c in CATS])
+    # Kazakh vs English (same episodes, commands are literal translations of each other)
+    lang_section = ""
+    if "qolda_kk" in set(df.arm) and "qolda_en" in set(df.arm):
+        c = paired_contrast(dfc, arm_col="arm", arm_a="qolda_kk", arm_b="qolda_en", metric="success",
+                            pair_on=("dataset", "split", "episode_id"), n_boot=5000)
+        lrows = []
+        for a in [x for x in ("qolda_en", "qolda_kk", "qolda_kkru") if x in set(df.arm)]:
+            g = df[df.arm == a]
+            lrows.append([E(ARMS[a][0]), f"{int(g.success.sum())}/{len(g)}", str(int((g.outcome == "false_stop").sum())),
+                          str(int((~g.parse_ok.astype(bool)).sum())), f"{int((g.hypothesis_match == True).sum())}/{len(g)}",  # noqa: E712
+                          pct(g.goal_ever_in_view.mean())])
+        en = df[df.arm == "qolda_en"].set_index("episode_id")
+        kk = df[df.arm == "qolda_kk"].set_index("episode_id").loc[en.index]
+        ru_out = {"step_limit": "лимит шагов", "stuck": "застрял", "not_found": "не нашёл", "false_stop": "ложный стоп",
+                  "model_failure": "ошибка разбора", "fell": "упал"}
+        only_en = [f"{E(i.replace('apartment_1_', ''))} (на казахском «{E(kk.loc[i, 'command_text'])}»: "
+                   f"{ru_out.get(kk.loc[i, 'outcome'], kk.loc[i, 'outcome'])})"
+                   for i in en.index if en.loc[i, "success"] and not kk.loc[i, "success"]]
+        only_kk = [f"{E(i.replace('apartment_1_', ''))} (на английском «{E(en.loc[i, 'command_text'])}»: "
+                   f"{ru_out.get(en.loc[i, 'outcome'], en.loc[i, 'outcome'])})"
+                   for i in en.index if kk.loc[i, "success"] and not en.loc[i, "success"]]
+        lang_section = f"""
+<section>
+  <h2>Казахский против английского</h2>
+  <p>Те же {len(en)} эпизодов; английские команды — дословный перевод казахских шаблонов, в том же порядке
+  («Банан қайда? Тауып бер.» ↔ «Where is the banana? Find it.»). Различается только язык команды.</p>
+  {table(["плечо", "успех", "ложный стоп", "ошибка разбора", "гипотеза называет объект", "цель в кадре"], lrows, "num")}
+  <p>Разница казахский − английский: <b>{100 * c['diff']:+.0f} п.п.</b> [{100 * c['diff_ci_low']:+.0f}, {100 * c['diff_ci_high']:+.0f}],
+  успех только на казахском / только на английском: {int(c['mcnemar_only_a'])} / {int(c['mcnemar_only_b'])}, McNemar p = {c['mcnemar_p']:.3f}.</p>
+  <p class="note">Только английский справился: {"; ".join(only_en) or "нет"}.<br>
+  Только казахский справился: {"; ".join(only_kk) or "нет"}.</p>
+  <p>На этих 20 эпизодах казахская команда не хуже английской, но теряет в других местах. Казахский проигрывает на
+  разборе (4 невалидных JSON, одна ложная остановка у «вазы»). Английский разбирается всегда, чаще видит цель, но чаще
+  упирается в лимит шагов и в осторожность проверки. Интервал разницы широкий (±20 п.п.), а предметы здесь обычные:
+  на культурных словах разбор ошибается чаще (таблица ниже), и это нужно проверить в навигации отдельно.</p>
+</section>
+"""
+
     # verifier totals over the verification arms
     vlm_arms = [a for a in labels if ARMS[a][1] == "vlm" and a in dirs]
     tot = np.sum([verifier_counts(REPO / dirs[a]) for a in vlm_arms], axis=0) if vlm_arms else np.zeros(4, int)
@@ -230,21 +271,27 @@ def main() -> None:
   </div>
   <p>Qolda почти никогда не соглашается с чужим объектом, но иногда отвергает настоящий — обычно когда цель
   видна мелко, сбоку или обрезана. Порог и калибровка пока отладочные; на dev-сплите HM3D они будут подобраны заново.</p>
+  <p class="note">Метка «настоящая цель» ставится по положению кандидата (ближе 0.3 м к цели), а не по содержимому кропа.
+  Иногда рамка детектора ложится на соседний предмет рядом с целью — такой кроп засчитан как «цель», хотя цели на нём нет.
+  Поэтому доля подтверждённых целей здесь несколько занижена.</p>
   <p>Цена проверки — время. Каждый ложный кандидат робот сначала подъезжает посмотреть, поэтому до цели он
-  доходит реже, чем оракул: цель в кадре в половине эпизодов против трёх четвертей, и застревает он чаще.
+  доходит реже, чем оракул (цель в кадре в 50–70 % эпизодов против 75 %), и застревает он чаще.
   Проверка убирает ложные остановки, но не ложные детекции.</p>
 </section>
 
+{lang_section}
 <section>
   <h2>Где теряем: язык или навигация</h2>
   {table(["плечо"] + [f"{CATS[c]} ({c})" for c in CATS], cat_rows, "num")}
-  <p><b>Кувшин проигран языку.</b> Ни в одном из 10 разборов английские гипотезы не называют кувшин (pitcher, jug):
-  «құмыра» Qolda понимает как vase, «кувшин» в смешанной команде — как vase или «көзілдірік» (очки) с гипотезой
-  umbrella, ещё два разбора дали невалидный JSON.
-  В одном эпизоде робот остановился у горшка с растением на столе: на вопрос «vase?» верификатор ответил «иә» —
-  ошибка пришла из разбора, модель искала не тот предмет.
-  <b>Дрель проиграна навигации.</b> Разбор верный во всех 10 эпизодах («power drill»), но дрель попала в кадр
-  только в 4 из них. Оракул находит кувшин в 5 из 5 эпизодов и дрель в 4 из 5.</p>
+  <p><b>Кувшин не найден ни на одном языке, но теряется на разных стадиях.</b> На казахском — на разборе:
+  «құмыра» Qolda понимает как vase, «кувшин» в смешанной команде — как vase или «көзілдірік» (очки), ещё два разбора
+  дали невалидный JSON; в одном эпизоде робот остановился у горшка с растением (на «vase?» проверка ответила «иә»).
+  На английском разбор верный («pitcher»), кувшин попадал в кадр в 3 эпизодах из 5, но проверка его не признала:
+  на чётком кадре синего пластикового кувшина YCB P(«yes») = 0.44, на обрезанном — 0.17, оба ниже порога.
+  <b>Горчица — обратный случай:</b> казахский разбор дал общее слово «бөтелке» (бутылка), и на «это бутылка?» проверка
+  уверенно отвечает «иә»; точное английское «mustard bottle» проверка признаёт неуверенно (P 0.43–0.59).
+  <b>Дрель</b> в казахских вариантах разобрана верно во всех 10 эпизодах, но попадала в кадр только в 4 —
+  это потеря на навигации.</p>
 </section>
 
 <section>

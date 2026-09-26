@@ -12,5 +12,9 @@ templates:
   kk_ru:
     - {id: kkru_where, text: "{ru} қайда? Тауып бер."}
     - {id: kkru_need, text: "Маған {ru} керек, соны тауып бер."}
+  # English control: literal translations of the kk templates, in the same order, so that an episode gets
+  # the same kind of command in both languages and the kk vs en arms differ only in the language (D-037).
   en:
-    - {id: en_find, text: "Find the {en}."}
+    - {id: en_where, text: "Where is the {en}? Find it."}           # = kk_where
+    - {id: en_need, text: "I need the {en}, find it."}              # = kk_need
+    - {id: en_goto, text: "Go to where the {en} is."}               # = kk_goto
