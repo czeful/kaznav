@@ -158,3 +158,5 @@ dataset=hm3d_objectnav_v1_val | hm3d_ovon_val_unseen | custom_room
   dev-эпизодов, и пересечение с оцениваемыми эпизодами — ошибка.
 - Собственная комната (`dataset=custom_room`, `role: debug`) не входит в основные
   таблицы.
+#   k a z n a v  
+ 
