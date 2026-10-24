@@ -36,7 +36,7 @@ categories:
     word_type: universal
     dataset_labels: [tv_monitor]
     names:
-      en: [tv, television, monitor, tv screen, screen]
+      en: [tv, television, monitor, tv screen]
       kk: [теледидар, монитор]
       ru: [телевизор, монитор]
   - name: sofa

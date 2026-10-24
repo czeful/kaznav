@@ -6,6 +6,7 @@ calibration artifact whose dev episodes overlap the evaluation episodes.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from dataclasses import asdict, dataclass, field
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 import numpy as np
+from scipy.special import expit
 
 from ..eval.classification import threshold_metrics
 
@@ -52,29 +54,43 @@ class PlattCalibrator(Calibrator):
 
     @classmethod
     def fit(cls, p: Sequence[float], y: Sequence[bool], max_iter: int = 100, tol: float = 1e-10) -> "PlattCalibrator":
+        """Newton's method with backtracking on the smoothed-target log loss (Lin, Lin & Weng 2007). Without the
+        line search a verifier that only says ~0 or ~1 (Qwen on the pilot crops) sends the plain Newton step to
+        a ~ -1e12."""
         x = _logit_arr(np.asarray(p, dtype=float))
         yy = np.asarray(y, dtype=float)
         n_pos, n_neg = yy.sum(), (1 - yy).sum()
         if n_pos == 0 or n_neg == 0:
             raise ValueError("Platt scaling needs both classes in the calibration set")
         t = np.where(yy == 1, (n_pos + 1) / (n_pos + 2), 1 / (n_neg + 2))
+
+        def loss(a: float, b: float) -> float:
+            z = a * x + b                         # t*log(1+e^-z) + (1-t)*log(1+e^z), overflow-free
+            return float(np.sum(t * np.logaddexp(0.0, -z) + (1 - t) * np.logaddexp(0.0, z)))
+
         a, b = 1.0, 0.0
+        f = loss(a, b)
         for _ in range(max_iter):
-            z = a * x + b
-            q = 1 / (1 + np.exp(-z))
+            q = expit(a * x + b)
             g = np.array([np.sum((q - t) * x), np.sum(q - t)])
             wq = q * (1 - q)
-            h = np.array([[np.sum(wq * x * x), np.sum(wq * x)], [np.sum(wq * x), np.sum(wq)]])
-            h += 1e-12 * np.eye(2)
+            h = np.array([[np.sum(wq * x * x), np.sum(wq * x)], [np.sum(wq * x), np.sum(wq)]]) + 1e-12 * np.eye(2)
             step = np.linalg.solve(h, g)
-            a, b = a - step[0], b - step[1]
-            if np.max(np.abs(step)) < tol:
+            lr = 1.0
+            while lr > 1e-12:
+                na, nb = a - lr * step[0], b - lr * step[1]
+                nf = loss(na, nb)
+                if nf <= f + 1e-4 * lr * float(g @ -step):
+                    break
+                lr /= 2
+            moved = max(abs(na - a), abs(nb - b))
+            a, b, f = na, nb, nf
+            if moved < tol:
                 break
         return cls(a, b)
 
     def __call__(self, p: Sequence[float]) -> np.ndarray:
-        z = self.a * _logit_arr(np.asarray(p, dtype=float)) + self.b
-        return 1 / (1 + np.exp(-z))
+        return expit(self.a * _logit_arr(np.asarray(p, dtype=float)) + self.b)
 
     def to_dict(self) -> dict:
         return {"kind": self.kind, "a": self.a, "b": self.b}
@@ -210,3 +226,64 @@ class CalibrationArtifact:
                 f"calibration was fitted on {len(overlap)} of the evaluation episodes "
                 f"(e.g. {sorted(overlap)[:3]}); thresholds must come from a disjoint dev split"
             )
+
+
+# ---------------------------------------------------------------------------- fitting the stop rule (D-042)
+FITTERS = {"identity": lambda p, y: IdentityCalibrator(), "platt": PlattCalibrator.fit, "isotonic": IsotonicCalibrator.fit}
+
+
+@dataclass
+class StopRuleFit:
+    calibrator: Calibrator
+    threshold: ThresholdChoice
+    base_rate: float
+    metrics: Dict[str, float]
+
+
+def _fold_of(group: str, folds: int) -> int:
+    return int.from_bytes(hashlib.sha256(group.encode("utf-8")).digest()[:4], "big") % folds
+
+
+def fit_stop_rule(p_raw: Sequence[float], y: Sequence[bool], groups: Sequence[str], *, method: str = "platt",
+                  objective: str = "max_f1", min_precision: Optional[float] = None, n_bins: int = 10,
+                  folds: int = 5) -> StopRuleFit:
+    """Calibrator + stop threshold on dev samples (one per verifier call; ``groups`` = episode ids).
+
+    Fitting and judging on the same calls is optimistic, so ``metrics`` also holds out-of-fold numbers: folds
+    split by episode (calls of one episode are correlated), each fold calibrated and thresholded by a rule
+    fitted on the other folds. Folds whose training part lacks a class are skipped and counted."""
+    from ..eval.calibration import brier_score, ece_binary
+
+    p = np.asarray(p_raw, dtype=float)
+    yy = np.asarray(y, dtype=bool)
+    g = np.asarray([_fold_of(str(s), folds) for s in groups])
+    if method not in FITTERS:
+        raise ValueError(f"unknown calibration method {method!r}; one of {sorted(FITTERS)}")
+    cal = FITTERS[method](p, yy)
+    pc = cal(p)
+    thr = choose_threshold(pc, yy, objective=objective, min_precision=min_precision)
+    oof = np.full(p.shape, np.nan)
+    oof_stop = np.zeros(p.shape, dtype=bool)
+    skipped = 0
+    for k in range(folds):
+        test, train = g == k, g != k
+        if not test.any():
+            continue
+        if yy[train].all() or not yy[train].any():
+            skipped += 1
+            continue
+        c = FITTERS[method](p[train], yy[train])
+        t = choose_threshold(c(p[train]), yy[train], objective=objective, min_precision=min_precision)
+        oof[test] = c(p[test])
+        oof_stop[test] = oof[test] >= t.threshold
+    have = ~np.isnan(oof)
+    m_oof = threshold_metrics(oof_stop[have].astype(float), yy[have], 0.5) if have.any() else None
+    metrics = {
+        "n": int(p.size), "n_pos": int(yy.sum()), "ece_raw": ece_binary(p, yy, n_bins), "brier_raw": brier_score(p, yy),
+        "ece_fit": ece_binary(pc, yy, n_bins), "brier_fit": brier_score(pc, yy),
+        "oof_n": int(have.sum()), "oof_folds_skipped": skipped,
+        "oof_ece": ece_binary(oof[have], yy[have], n_bins) if have.any() else float("nan"),
+        "oof_precision": m_oof.precision if m_oof else float("nan"),
+        "oof_recall": m_oof.recall if m_oof else float("nan"),
+    }
+    return StopRuleFit(cal, thr, float(yy.mean()), metrics)

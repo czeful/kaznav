@@ -21,6 +21,7 @@ BACKENDS: Registry[VLMBackend] = Registry(
         "kznav.language.backends.qwen_vl",
         "kznav.language.backends.mock",
         "kznav.language.backends.replay",
+        "kznav.language.backends.qolda_avl",
     ],
 )
 
@@ -34,4 +35,9 @@ def create_backend(
 ) -> VLMBackend:
     cls = BACKENDS.resolve(spec)
     lib = prompts or load_prompt_library(prompt_root)
-    return cls(spec, lib, sink)  # type: ignore[call-arg]
+    backend = cls(spec, lib, sink)  # type: ignore[call-arg]
+    if spec.get("parse_replay"):                       # D-078: parse from recorded calls, verify live
+        from .backends.parse_replay import ParseReplayBackend
+
+        return ParseReplayBackend(backend, lib)  # type: ignore[return-value]
+    return backend

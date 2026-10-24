@@ -20,6 +20,7 @@ from scipy.sparse.csgraph import dijkstra
 from ..perception.camera import Intrinsics
 from .diff_drive import DriveLimits, VelocityLimiter, integrate_unicycle
 from .env import Observation, Tick
+from .episodes import SemanticObject
 from .frames import habitat_to_map, map_to_habitat
 
 
@@ -29,6 +30,7 @@ class MockBox:
     hi: Tuple[float, float, float]
     semantic_id: int = 0
     color: Tuple[int, int, int] = (150, 150, 150)
+    category: str = ""
 
 
 def room_with_boxes(size: float = 6.0, wall_h: float = 2.5, extra: Sequence[MockBox] = ()) -> List[MockBox]:
@@ -213,6 +215,10 @@ class MockEnv:
             if 0 <= r < h and 0 <= c < w:
                 best = min(best, float(dist[r * w + c]))
         return best
+
+    def semantic_objects(self) -> Dict[int, SemanticObject]:
+        return {b.semantic_id: SemanticObject(b.semantic_id, str(b.semantic_id), b.category, list(b.lo), list(b.hi))
+                for b in self.boxes if b.semantic_id > 0}
 
     def close(self) -> None:
         pass

@@ -1,0 +1,35 @@
+# Dev study (D-054): GroundingDINO score threshold and the frame-filling-box filter, on DEV episodes (train scenes)
+# with the VLFM-style baseline (English label, no VLM) on the kinematic wheeled robot at the chosen camera pitch.
+# Rule fixed before the runs: the setting with the highest dev SR wins (ties: fewer false stops); it then applies to
+# every arm of the main matrix - the baseline gets its best shot, and all arms share the detector.
+# Dev split: splits/hm3d_v1_dev.txt (150 runnable episodes, 25 per category, 10 train scenes); camera pitch 20 (D-004).
+name: dev_detector
+title: "DEV: GroundingDINO thresholds for the low camera"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - detector=grounding_dino_tiny
+  - segmenter=box                                # the defaults these runs had, before D-064
+  - perception.detection.fusion.enabled=false
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev.txt
+  - run.video.fraction=0.05
+arms:
+  - {key: t035_a100, label: "score 0.35, all boxes", lang: none, overrides: []}
+  - {key: t035_a080, label: "score 0.35, boxes <= 80%", lang: none, overrides: [detector.max_box_area_frac=0.8]}
+  - {key: t050_a100, label: "score 0.50, all boxes", lang: none, overrides: [detector.box_threshold=0.5]}
+  - {key: t050_a080, label: "score 0.50, boxes <= 80%", lang: none,
+     overrides: [detector.box_threshold=0.5, detector.max_box_area_frac=0.8]}
+  - {key: t065_a080, label: "score 0.65, boxes <= 80%", lang: none,
+     overrides: [detector.box_threshold=0.65, detector.max_box_area_frac=0.8]}
+  # Added 2026-10-06 after the first five arms, before seeing these two: dev SR was still rising at 0.65 (the edge of the
+  # grid); the rule is unchanged (highest dev SR wins; ties: fewer false stops). Dev data only, test untouched.
+  - {key: t075_a080, label: "score 0.75, boxes <= 80%", lang: none,
+     overrides: [detector.box_threshold=0.75, detector.max_box_area_frac=0.8]}
+  - {key: t085_a080, label: "score 0.85, boxes <= 80%", lang: none,
+     overrides: [detector.box_threshold=0.85, detector.max_box_area_frac=0.8]}
+  - {key: oracle, label: "ground-truth detector (ceiling)", lang: none, overrides: [detector=oracle_semantic]}
+contrasts: []
+breakdowns: [goal_category]

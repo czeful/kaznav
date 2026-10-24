@@ -9,7 +9,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, fields
 from typing import List, Optional
 
-SCHEMA_VERSION = 2   # v2: + recoveries
+SCHEMA_VERSION = 4   # v2: + recoveries; v3: + goal_mode, pipeline_lang, translation, translation_latency_s;
+                     # v4: + stop labels, verifier rejections, failure_stage, vlm_call_errors, localization
+                     #     (D-045, D-046, D-051)
 
 
 @dataclass
@@ -68,6 +70,21 @@ class EpisodeResult:
     verify_logprobs_missing: int
     # --- recovery behaviour (v2) ----------------------------------------------
     recoveries: int = 0              # times the robot backed off after making no progress
+    # --- goal ablations (v3, D-038 / D-039) -----------------------------------
+    goal_mode: str = ""              # multi | top1 | mt_command | mt_word ("" without a language model)
+    pipeline_lang: str = ""          # language of the parse and the verification question (en after mt_command)
+    translation: str = ""            # translator output: the command (mt_command) or the object name (mt_word)
+    translation_latency_s: float = 0.0   # the translation call, charged to every episode of the command
+    # --- stop labels and failure attribution (v4, D-045 / D-046) ---------------
+    stop_box_goal_fraction: Optional[float] = None   # goal pixels in the stop candidate's latest box (content label)
+    stop_is_goal_by_position: Optional[bool] = None  # stop candidate within stop_candidate_radius_m of a goal AABB
+    stop_label_source: str = ""                      # content | position | "" - what stop_candidate_is_goal uses
+    goal_ever_verify_rejected: bool = False          # a goal instance (content label) shown to the verifier, rejected
+    failure_stage: str = ""                          # kznav.eval.failures.Stage: one stage per failed episode
+    vlm_call_errors: int = 0                         # model calls that failed after retries (invalid output)
+    localization: str = "ground_truth"               # pose given to the policy: ground_truth | odometry (D-051)
+    loc_error_final_m: float = 0.0                   # |estimated - true| position at the end of the episode
+    loc_heading_error_final_deg: float = 0.0
     # --- provenance -----------------------------------------------------------
     schema_version: int = SCHEMA_VERSION
     notes: str = ""

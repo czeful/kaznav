@@ -1,0 +1,44 @@
+# Table (a), docs/analysis_plan.md §2: the same pipeline on habitat-lab's standard agent (dataset navmesh and view
+# points), for comparison with published VLFM numbers. DRAFT until the plan is frozen.
+# D-064: the same perception stack as table (b) (the config default: MM-GroundingDINO base 0.50, SAM 2.1, fusion 0.45),
+# and a simple random sample of the WHOLE val split (not the wheeled robot's runnable, category-balanced subset), so
+# the category mix is val's own, as in the published numbers:
+#   python tools/make_split.py test --dataset hm3d_objectnav_v1_val --random 300 --out splits/hm3d_v1_table_a.txt
+name: hm3d_v1_table_a
+title: "HM3D ObjectNav v1 val, standard Habitat agent (table a)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_val
+  - dataset.commands=commands/natural/hm3d_objectnav_v1.yaml
+  - embodiment=habitat_agent
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_table_a.txt
+  - run.video.fraction=0.02
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+  qwen: {start: bash tools/start_qwen.sh, pid_file: runs/servers/qwen.pid, health: "http://127.0.0.1:23334/v1/models"}
+arms:
+  - {key: vlfm_en, label: "VLFM-style, English label (no VLM)", lang: none, overrides: []}
+  # D-062: VLFM's detector class (closed-set COCO 0.8; RT-DETR for YOLOv7) + SAM masks, no fusion, as VLFM
+  - {key: vlfm_closed, label: "VLFM-style, closed-set COCO detector 0.8 (as VLFM)", lang: none,
+     overrides: [detector=rtdetr_coco, perception.detection.fusion.enabled=false]}
+  - key: qolda_kk
+    label: "Qolda, kk"
+    lang: kk
+    server: qolda
+    accent: true
+    overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json]
+  - key: qolda_en
+    label: "Qolda, en"
+    lang: en
+    server: qolda
+    overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json]
+  - key: qwen_kk
+    label: "Qwen3-VL-4B, kk"
+    lang: kk
+    server: qwen
+    overrides: [backend=qwen3vl_4b, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json]
+contrasts: [[qolda_kk, qwen_kk], [qolda_en, qolda_kk]]
+decompositions: [[qolda_en, qolda_kk]]
+breakdowns: [goal_category]

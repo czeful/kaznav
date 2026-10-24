@@ -1,5 +1,8 @@
 type: grounding_dino
 model_id: IDEA-Research/grounding-dino-tiny     # SwinT-OGC weights, HF implementation (D-009)
 device: cuda
-box_threshold: 0.35                             # GroundingDINO / VLFM defaults
+box_threshold: 0.65                             # chosen on dev for the 0.15 m camera (D-054); VLFM default 0.35
 text_threshold: 0.25
+max_box_area_frac: 0.8                          # drop boxes covering more of the image (1.0 = off); chosen on dev (D-054)
+query_mode: separate                            # one caption and forward pass per query (D-058); joint = "q1 . q2 . q3 ."
+input_resize: native                            # the 640x480 frame as is, not upscaled to 800 (D-059)

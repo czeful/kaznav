@@ -1,0 +1,15 @@
+# Closed-set COCO detector for the VLFM reference row (D-062): VLFM uses YOLOv7 at confidence 0.8 for its COCO target
+# classes; RT-DETR R101 (Objects365 + COCO, 56.2 AP) is the same detector class, in transformers. Baseline rows only:
+# it maps category names to COCO classes and does not read language.
+type: coco_closed_set
+model_id: PekingU/rtdetr_r101vd_coco_o365
+device: cuda
+box_threshold: 0.8                    # VLFM's coco_threshold
+max_box_area_frac: 1.0                # VLFM has no box filter
+aliases:                              # HM3D ObjectNav category -> COCO class (VLFM's names)
+  chair: chair
+  bed: bed
+  plant: potted plant
+  toilet: toilet
+  tv_monitor: tv
+  sofa: couch

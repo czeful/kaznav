@@ -1,0 +1,13 @@
+# VLFM with a translator in front (D-039). The goal is the object's name in the command language, given with
+# the episode as the category is in standard ObjectNav (the word the command templates insert) - not parsed from
+# the command, so no VLM call. The translator turns it into English and that one phrase is the only detector /
+# value-map query (weight 1.0). Verification, when on, asks about that name in the command language.
+defaults:
+  - mt_command
+  - _self_
+
+name: mt_word
+translation: word
+translator:
+  generation:
+    max_new_tokens: 20     # a word or a short phrase; the pilot's setting for word translation

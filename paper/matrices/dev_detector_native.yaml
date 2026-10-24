@@ -1,0 +1,25 @@
+# Dev re-check of D-054 after D-059 (GroundingDINO on the 640x480 frame as is, not upscaled to 800): the VLFM-style
+# baseline (English label, no VLM) on the kinematic wheeled robot, pitch 20, dev split (150 episodes, train scenes).
+# Rule fixed before the runs (as in D-054): the threshold with the highest dev SR wins (ties: fewer false stops); if
+# 0.65 is best or tied, the D-054 value stays. The winner applies to every arm of the main matrix.
+name: dev_detector_native
+title: "DEV: GroundingDINO threshold at native resolution (D-059)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - detector=grounding_dino_tiny
+  - segmenter=box                                # the defaults these runs had, before D-064
+  - perception.detection.fusion.enabled=false
+  - detector.input_resize=native
+  - detector.max_box_area_frac=0.8
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev.txt
+  - run.video.fraction=0.05
+arms:
+  - {key: t050, label: "score 0.50, native", lang: none, overrides: [detector.box_threshold=0.5]}
+  - {key: t065, label: "score 0.65, native", lang: none, overrides: [detector.box_threshold=0.65]}
+  - {key: t075, label: "score 0.75, native", lang: none, overrides: [detector.box_threshold=0.75]}
+contrasts: []
+breakdowns: [goal_category]

@@ -48,12 +48,15 @@ class Detector(ABC):
 
 
 class Segmenter(ABC):
+    #: True when masks hold only the object (no background): the object memory then skips the D-054 depth band.
+    precise = False
+
     def __init__(self, spec: Mapping[str, Any]):
         self.spec = dict(spec)
 
     @abstractmethod
-    def segment(self, rgb: np.ndarray, box_xyxy: Sequence[float]) -> np.ndarray:
-        """Boolean HxW mask of the object inside ``box_xyxy``."""
+    def segment(self, rgb: np.ndarray, box_xyxy: Sequence[float]) -> Optional[np.ndarray]:
+        """Boolean HxW mask of the object inside ``box_xyxy``; None when the segmenter finds nothing there."""
 
     def describe_config(self) -> Mapping[str, Any]:
         return {"class": f"{type(self).__module__}.{type(self).__qualname__}", "spec": self.spec}
@@ -72,8 +75,9 @@ class ValueEncoder(ABC):
 
 
 DETECTORS: Registry[Detector] = Registry("detector", builtin_modules=["kznav.perception.mock", "kznav.perception.oracle",
-                                                                  "kznav.perception.grounding_dino"])
-SEGMENTERS: Registry[Segmenter] = Registry("segmenter", builtin_modules=["kznav.perception.mock"])
+                                                                  "kznav.perception.grounding_dino",
+                                                                  "kznav.perception.coco_detector"])
+SEGMENTERS: Registry[Segmenter] = Registry("segmenter", builtin_modules=["kznav.perception.mock", "kznav.perception.sam"])
 VALUE_ENCODERS: Registry[ValueEncoder] = Registry("value encoder", builtin_modules=["kznav.perception.mock", "kznav.perception.siglip"])
 
 

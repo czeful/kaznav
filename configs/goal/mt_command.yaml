@@ -1,0 +1,19 @@
+# Translate-first baseline (D-039): the translator turns the whole command into English, then the unchanged
+# pipeline runs in English: the VLM parses the English text, the verification question is asked in English.
+defaults:
+  - multi
+  - _self_
+
+name: mt_command
+translation: command
+translator:
+  name: nllb_600m
+  type: nllb
+  model_id: facebook/nllb-200-distilled-600M   # the pilot's translator (qolda check, check 5); CC-BY-NC 4.0
+  device: cpu              # the GPU is full (D-006: 11.8 of 12.2 GB); one call per command, cached
+  dtype: fp32
+  lang_codes: {kk: kaz_Cyrl, kk_ru: kaz_Cyrl, ru: rus_Cyrl, en: eng_Latn}   # mixed kk-ru commands go in as Kazakh
+  target_lang: en
+  generation:
+    num_beams: 1           # greedy, as in the pilot
+    max_new_tokens: 64

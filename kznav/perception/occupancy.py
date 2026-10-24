@@ -51,14 +51,18 @@ class MapParams:
     @classmethod
     def from_config(cls, m: Mapping[str, Any], emb: Mapping[str, Any]) -> "MapParams":
         lo = m["log_odds"]
+        drops = bool(emb.get("drops_are_obstacles", True))
         return cls(
             size_m=float(m["size_m"]), resolution_m=float(m["resolution_m"]), pixel_stride=int(m["pixel_stride"]),
             max_range_m=float(m["max_range_m"]), l_hit=float(lo["hit"]), l_miss=float(lo["miss"]),
             l_min=float(lo["min"]), l_max=float(lo["max"]), p_occupied=float(m["p_occupied"]), p_free=float(m["p_free"]),
             obstacle_min_height_m=max(float(m["obstacle_min_height_m"]), float(emb["navmesh"]["agent_max_climb_m"])),
             obstacle_max_height_m=embodiment_top(emb) + float(m["obstacle_margin_above_top_m"]),
-            cliff_depth_m=float(m["cliff_depth_m"]),
-            missing_return_max_range_m=float(m.get("missing_return_max_range_m", 0.0)),
+            # Drops (stairs down, scan holes) are obstacles only for an embodiment that must avoid them - the wheeled
+            # robot (cliff sensors, D-026). The standard agent walks down stairs on its navmesh; for it, as in VLFM,
+            # points below the floor are not obstacles (D-052).
+            cliff_depth_m=float(m["cliff_depth_m"]) if drops else float("inf"),
+            missing_return_max_range_m=float(m.get("missing_return_max_range_m", 0.0)) if drops else 0.0,
         )
 
 

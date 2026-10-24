@@ -1,0 +1,10 @@
+# MM-GroundingDINO base (O365, GoldG, V3Det; Swin-B), chosen on the robot camera's dev frames (D-060): +7.5 points
+# TPR at FPR 10% for the method's hypotheses over GroundingDINO-tiny. Same class and processing as grounding_dino_tiny.
+type: grounding_dino
+model_id: openmmlab-community/mm_grounding_dino_base_o365v1_goldg_v3det
+device: cuda
+box_threshold: 0.5                              # chosen on dev with the new stack (D-060, stage 1)
+text_threshold: 0.25
+max_box_area_frac: 0.8                          # drop boxes covering more of the image (D-054)
+query_mode: separate                            # one caption and forward pass per query (D-058)
+input_resize: native                            # the 640x480 frame as is (D-059)

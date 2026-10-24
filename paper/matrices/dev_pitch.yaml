@@ -1,0 +1,23 @@
+# Dev study D-004, step 2: camera pitch confirmed with the ground-truth detector on the dev pool (train scenes), the
+# kinematic wheeled robot. Rule fixed before the runs: oracle SR over the UNION of episodes runnable at any compared
+# pitch, an episode with no view point at a pitch counting as a failure at that pitch (a higher camera sees more goals
+# but less of the floor next to the robot; this measures both). Highest wins; ties go to the smaller pitch.
+name: dev_pitch
+title: "DEV: camera pitch (oracle detector)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - detector=oracle_semantic
+  - segmenter=box                                # the defaults these runs had, before D-064
+  - perception.detection.fusion.enabled=false
+  - run.episodes.subset_file=splits/hm3d_v1_dev_pitch120.txt   # 20 per category, nested in the dev pool
+  - run.video.fraction=0.02
+arms:
+  - {key: p00, label: "pitch 0", lang: none, overrides: []}
+  - {key: p10, label: "pitch +10", lang: none, overrides: [embodiment.sensors.rgbd.mount.pitch_deg=10]}
+  - {key: p20, label: "pitch +20", lang: none, overrides: [embodiment.sensors.rgbd.mount.pitch_deg=20]}
+  - {key: p30, label: "pitch +30", lang: none, overrides: [embodiment.sensors.rgbd.mount.pitch_deg=30]}
+contrasts: []
+breakdowns: [goal_category]

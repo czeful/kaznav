@@ -1,0 +1,6 @@
+{
+  "choice": "zero-shot (sig)",
+  "auroc_head": 0.8343521129557676,
+  "auroc_soft": 0.8810976408054254,
+  "zero_variant": "sig"
+}

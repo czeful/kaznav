@@ -1,0 +1,7 @@
+# What the parsed goal hands to the detector, the value map and the verifier (kznav/language/goal.py).
+# multi = the method: every hypothesis the VLM wrote, weights as parsed, the command language throughout (D-028).
+# Ablations: goal=top1 (D-038), goal=mt_word | goal=mt_command (D-039).
+name: multi
+max_hypotheses: null      # null: all parsed hypotheses; N: the N highest-weighted, weights renormalised to 1
+translation: none         # none | command | word (see mt_command.yaml / mt_word.yaml)
+translator: null

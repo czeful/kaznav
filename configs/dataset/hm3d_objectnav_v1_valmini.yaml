@@ -1,0 +1,15 @@
+# HM3D ObjectNav v1, val_mini: 30 episodes in 2 scenes (00800-TEEsavR23oF, 00802-wcojb4TFT35) - a SMOKE test of the
+# whole chain on real HM3D data. These are VAL scenes: role smoke runs with tools/run_eval.py, but nothing may be
+# tuned on it (fit_calibration, dev_studies and make_split refuse it) and it never enters a table.
+name: hm3d_objectnav_v1
+split: val_mini
+role: smoke
+scenes_dir: ${paths.data_root}/scene_datasets/hm3d
+scene_root: ${paths.data_root}/scene_datasets
+scene_dataset_config: ${paths.data_root}/scene_datasets/hm3d/hm3d_annotated_basis.scene_dataset_config.json
+episodes_path: ${paths.data_root}/datasets/objectnav/hm3d/v1/val_mini/val_mini.json.gz
+success_distance_m: 0.1
+distance_to: view_points
+max_episode_steps: 500
+lexicon: lexicon/hm3d_objectnav.yaml
+commands: commands/hm3d_objectnav_v1.yaml

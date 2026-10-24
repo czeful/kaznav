@@ -1,0 +1,11 @@
+# The wheeled robot of wheeled_vacuum.yaml (body, camera, drive limits, navmesh) moving kinematically on its own
+# navmesh instead of through Bullet contacts (D-053, kznav/sim/kinematic.py): the main tables on HM3D, whose scanned
+# meshes make the physical robot get stuck on scan artefacts (D-052). The articulated robot stays for robustness.
+defaults:
+  - wheeled_vacuum
+  - _self_
+
+name: wheeled_vacuum_kinematic
+
+physics:
+  mode: kinematic           # articulated (Bullet, wheeled_vacuum.yaml) | kinematic (navmesh, this file)

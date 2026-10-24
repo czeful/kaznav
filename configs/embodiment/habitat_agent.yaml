@@ -17,6 +17,9 @@ drive:
 physics:
   mode: none                  # habitat-lab default: navmesh sliding, no dynamics
 
+drops_are_obstacles: false     # map: points below the floor are obstacles - habitat-lab's agent walks down stairs on its navmesh; as in VLFM (D-052)
+fall_terminates: false         # going down a floor is not a fall: the episode goes on, as in habitat-lab (D-061)
+
 navmesh:
   source: dataset             # the navmesh shipped with the scene dataset; recomputed with these if absent
   agent_radius_m: 0.18
@@ -43,9 +46,9 @@ sensors:
   imu:
     enabled: false
 
-localization: ground_truth
+localization: ground_truth    # | odometry: true increments through the drift model (D-051)
 
 noise:
-  depth: {model: none}
-  actuation: {model: none}
+  depth: {model: none}        # none | redwood | gaussian
+  actuation: {model: none}    # wheeled robot only
   odometry_drift: {model: none}

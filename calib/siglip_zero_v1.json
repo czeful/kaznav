@@ -1,0 +1,25 @@
+{
+  "calibrator": {
+    "kind": "platt",
+    "a": 0.6257355624359353,
+    "b": 2.4533434562685104
+  },
+  "threshold": {
+    "threshold": 0.29773127451147585,
+    "objective": "max_f1",
+    "precision": 0.5899749373433584,
+    "recall": 0.7073317307692307,
+    "f1": 0.6433451762776714,
+    "n": 7712
+  },
+  "backend": "siglip_zero",
+  "model_id": "google/siglip2-base-patch16-224#sig",
+  "prompt_sha256": "a543997d84f12798350c09bdef2cdb171bf41ed3e4a5f808af2feb0c56263009",
+  "dev_split": "verifier_data held-out scenes",
+  "dev_episode_ids": [],
+  "n_samples": 7712,
+  "base_rate": 0.2157676348547718,
+  "created_utc": "2026-10-21T15:01:59+00:00",
+  "notes": "SigLIP zero-shot (sig); calibrated on 7712 verifier crops of dev scenes except dev3",
+  "extra": {}
+}

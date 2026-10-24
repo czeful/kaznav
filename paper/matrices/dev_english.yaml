@@ -1,0 +1,29 @@
+# D-071 step 1: the verifier asks in English about the model's most likely English hypothesis (parse v2: v3 failed its
+# check, D-071 step 0; the supervisor's architecture decision of 2026-10-17), calibrated on Qolda's English-question calls
+# (calib/qolda_dev18_en.json). Qolda kk, D-069 on, the same 85 dev_tune85 episodes as dev_last_metre:
+#   b0 - a0 + English question;  b2 - a2 (commit + ask from afar + stop where in view) + English question.
+# Rules (docs/decisions.md D-071): the English question is measured as b0 vs a0; the last-metre package (second and
+# last attempt) is adopted for every verifier arm if b2 has at least 3 more successes than b0.
+name: dev_english
+title: "DEV: English verification question (D-071, stage 2 step 1)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_tune85.txt
+  - run.video.fraction=0.05
+  - backend=qolda
+  - policy.verification.question_lang=en
+  - policy.stop.calibration_file=calib/qolda_dev18_en.json
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+arms:
+  - {key: b0_qolda_kk, label: "Qolda kk, English question", lang: kk, server: qolda, overrides: []}
+  - {key: b2_qolda_kk, label: "Qolda kk, English question + last metre", lang: kk, server: qolda, accent: true,
+     overrides: [policy.verification.commit_approach=true, policy.verification.verify_range_m=1.5,
+                 policy.approach.stop_mode=visible]}
+contrasts: [[b2_qolda_kk, b0_qolda_kk]]
+breakdowns: [goal_category]

@@ -1,0 +1,29 @@
+# D-070 stage 1a: the stop rule of the arms WITHOUT a verifier. distance = stop within 0.6 m of a recently detected
+# candidate (as before); visible = also up to 0.9 m where the object is in the camera's vertical view (a TV on a stand
+# is out of view from 0.6 m for a camera 0.15 m high). No VLM, nothing about language. Rule (docs/decisions.md D-070):
+# visible is adopted for the arms without a verifier if the ground-truth detector gains at least 2 successes with it;
+# the VLFM-style baseline is shown for information.
+name: dev_stop
+title: "DEV: stop where the object is in view (D-070, stage 1a)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_stop142.txt
+  - run.video.fraction=0.03
+arms:
+  - {key: oracle_dist, label: "Ground-truth detector, stop at 0.6 m (as before)", lang: none,
+     overrides: [detector=oracle_semantic, segmenter=box, perception.detection.fusion.enabled=false,
+                 policy.approach.stop_mode=distance]}
+  - {key: oracle_vis, label: "Ground-truth detector, stop where the object is in view", lang: none, accent: true,
+     overrides: [detector=oracle_semantic, segmenter=box, perception.detection.fusion.enabled=false,
+                 policy.approach.stop_mode=visible]}
+  - {key: vlfm_dist, label: "VLFM-style, English label, stop at 0.6 m (as before)", lang: none,
+     overrides: [policy.approach.stop_mode=distance]}
+  - {key: vlfm_vis, label: "VLFM-style, English label, stop where the object is in view", lang: none,
+     overrides: [policy.approach.stop_mode=visible]}
+contrasts: [[oracle_vis, oracle_dist], [vlfm_vis, vlfm_dist]]
+breakdowns: [goal_category]

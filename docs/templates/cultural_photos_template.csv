@@ -1,0 +1,3 @@
+﻿photo_id,file,category,pair,word_type,split,viewpoint,instance,source,license,author
+kazan_001,kazan_001.jpg,қазан,cooking_pot,cultural,test,low,kazan_A,own,own,A01
+pot_001,pot_001.jpg,cooking_pot,қазан,universal,test,low,pot_A,own,own,A01

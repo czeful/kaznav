@@ -8,6 +8,11 @@ The executor turns a ``Decision`` into motion for the embodiment:
 
 The runner owns everything the policy must not see: the navmesh (geodesic distances for SPL),
 goal view points, ground-truth semantics for the funnel columns, stuck and collision monitors.
+
+Localization (D-051): the policy and the controller get the pose of the embodiment's localizer
+(kznav.sim.localization) - the true pose by default, or dead-reckoned odometry in the robustness
+study. The executor updates it on every tick it produces; the runner hands the policy the
+observation re-expressed in the estimated frame and keeps the true pose for every metric.
 """
 from __future__ import annotations
 
@@ -19,7 +24,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..eval.failures import OutcomeInputs, Termination, classify_episode
+from ..eval.failures import AttributionInputs, OutcomeInputs, Termination, attribute_failure, classify_episode
 from ..eval.metrics import EpisodeGeometry, SuccessRule, compute_episode_metrics, path_length
 from ..eval.records import EpisodeResult
 from ..eval.robot import StuckMonitor, StuckParams, count_collision_events
@@ -28,6 +33,17 @@ from ..policy.objectnav import Decision, ObjectNavPolicy
 from ..policy.verification import event_dict
 from ..sim.episodes import ObjectNavEpisode, footprint_distance
 from ..sim.frames import wrap_angle
+from ..sim.localization import make_localizer
+from ..sim.noise import ODOMETRY_DRIFT, _build
+
+
+def fall_limits(cfg: Mapping[str, Any]) -> Tuple[float, float]:
+    """Tilt (deg) and drop below the start height (m) that end an episode as a fall. None for an embodiment that may
+    change floors: habitat-lab's agent walks stairs, and its episodes go on on any floor (D-061)."""
+    if not cfg["embodiment"].get("fall_terminates", True):
+        return math.inf, math.inf
+    fall = cfg["eval"]["fall"]
+    return float(fall["max_tilt_deg"]), float(fall["max_drop_m"])
 
 
 def episode_seed(run_seed: int, episode_id: str) -> int:
@@ -43,6 +59,9 @@ class Executor:
         self.cfg = cfg
         emb = cfg["embodiment"]
         self.wheeled = emb["kind"] == "wheeled"
+        drift = _build(ODOMETRY_DRIFT, (emb.get("noise") or {}).get("odometry_drift", {}), np.random.default_rng(0))
+        self.localizer = make_localizer(emb, drift)       # re-seeded per episode by run_episode
+        self._est: List[Tuple[float, float, float]] = []
         if self.wheeled:
             self.ctrl = PurePursuit(PurePursuitParams.from_config(cfg["policy"]["controller"]))
             period = float(cfg["eval"]["episode_budget"]["decision_period_s"])
@@ -57,6 +76,12 @@ class Executor:
         else:
             self.step_m = float(emb["drive"]["forward_step_m"])
             self.turn = math.radians(float(emb["drive"]["turn_angle_deg"]))
+            pe = cfg["policy"].get("point_executor") or {}
+            # D-063: the path point to steer at (this far ahead) and the heading error tolerated before turning;
+            # defaults = the behaviour before D-063 (one step ahead, half a turn)
+            self.lookahead = float(pe.get("lookahead_m", self.step_m))
+            self.tolerance = math.radians(float(pe.get("heading_tolerance_deg", math.degrees(self.turn) / 2)))
+            self.mark_collisions = bool(pe.get("mark_collisions", False))
 
     def reset(self) -> None:
         self.no_progress = 0
@@ -64,43 +89,63 @@ class Executor:
         self.repeats = 0
         self.cliffs = 0
 
+    def _drive(self, v: float, w: float, n: int) -> List[Any]:
+        """env.drive, with the localizer updated on every tick (``self._est``: the estimates of this decision)."""
+        ticks = self.env.drive(v, w, n)
+        for t in ticks:
+            self._est.append(self.localizer.tick(t))
+        return ticks
+
+    def _act(self, action: str) -> Any:
+        t = self.env.act(action)
+        self._est.append(self.localizer.tick(t))
+        return t
+
     def execute(self, d: Decision, pose: Tuple[float, float, float]) -> Tuple[List[Any], Optional[Tuple[float, float, float]]]:
-        """Run one decision. Returns the ticks and, if the robot had to back off, the pose where it was blocked."""
-        env = self.env
+        """Run one decision from the (estimated) ``pose``. Returns the ticks and, if the robot had to back off, the
+        estimated pose where it was blocked."""
+        self._est = []
         if self.wheeled:
             if d.kind in ("spin", "no_plan"):          # no plan yet: look around instead of standing still
-                return env.drive(0.0, self.spin_w, self.ticks_per_decision), None
+                return self._drive(0.0, self.spin_w, self.ticks_per_decision), None
             if d.kind == "face" and d.target_xy is not None:
                 return self._face(d.target_xy, pose), None
             if not d.path_xy:
-                return env.drive(0.0, 0.0, self.ticks_per_decision), None
+                return self._drive(0.0, 0.0, self.ticks_per_decision), None
             self.ctrl.set_path(d.path_xy)
             ticks = []
             start = pose
             for _ in range(self.ticks_per_decision):
                 v, w = self.ctrl.command(pose)
-                t = env.drive(v, w, 1)[0]
+                t = self._drive(v, w, 1)[0]
                 ticks.append(t)
-                pose = t.pose
+                pose = self.localizer.pose
                 if t.cliff:
                     # cliff sensor: stop, back off, report where (the policy marks it on its map)
                     self.cliffs += 1
                     n = max(1, int(round(float(self.rec["backup_s"]) / self.control_dt)))
-                    ticks.extend(env.drive(-float(self.rec["backup_speed_mps"]), 0.0, n))
-                    return ticks, t.pose
+                    ticks.extend(self._drive(-float(self.rec["backup_speed_mps"]), 0.0, n))
+                    return ticks, pose
             return ticks, self._check_progress(start, ticks)
         # point agent: one discrete action
         if d.kind == "face" and d.target_xy is not None:
             err = wrap_angle(math.atan2(d.target_xy[1] - pose[1], d.target_xy[0] - pose[0]) - pose[2])
-            return [env.act("turn_left" if err > 0 else "turn_right")], None
+            return [self._act("turn_left" if err > 0 else "turn_right")], None
         if d.kind in ("spin", "no_plan") or not d.path_xy:
-            return [env.act("turn_left")], None
-        target = next((p for p in d.path_xy[1:] if math.hypot(p[0] - pose[0], p[1] - pose[1]) >= self.step_m),
+            return [self._act("turn_left")], None
+        target = next((p for p in d.path_xy[1:] if math.hypot(p[0] - pose[0], p[1] - pose[1]) >= self.lookahead),
                       d.path_xy[-1])
         err = wrap_angle(math.atan2(target[1] - pose[1], target[0] - pose[0]) - pose[2])
-        if abs(err) > self.turn / 2:
-            return [env.act("turn_left" if err > 0 else "turn_right")], None
-        return [env.act("move_forward")], None
+        if abs(err) > self.tolerance:
+            return [self._act("turn_left" if err > 0 else "turn_right")], None
+        t = self._act("move_forward")
+        if self.mark_collisions and t.collision:
+            # D-063: the navmesh stopped the step (something the map does not show, or a gap too narrow): report
+            # where, so the policy marks a virtual obstacle ahead and plans around it instead of pushing again
+            end = self._est[-1]
+            if math.hypot(end[0] - pose[0], end[1] - pose[1]) < 0.5 * self.step_m:
+                return [t], pose
+        return [t], None
 
     def _face(self, target: Tuple[float, float], pose: Tuple[float, float, float]) -> List[Any]:
         """Turn in place towards ``target`` for (at most) one decision period."""
@@ -110,15 +155,17 @@ class Executor:
             if abs(err) < 0.05:
                 break
             w = math.copysign(min(self.spin_w, 2.0 * abs(err)), err)
-            t = self.env.drive(0.0, w, 1)[0]
+            t = self._drive(0.0, w, 1)[0]
             ticks.append(t)
-            pose = t.pose
-        return ticks or self.env.drive(0.0, 0.0, 1)
+            pose = self.localizer.pose
+        return ticks or self._drive(0.0, 0.0, 1)
 
     def _check_progress(self, start: Tuple[float, float, float], ticks: List[Any]) -> Optional[Tuple[float, float, float]]:
-        """Proprioceptive blockage check (commanded forward motion, no displacement) and back-off."""
+        """Proprioceptive blockage check (commanded forward motion, no displacement by the robot's own pose
+        estimate) and back-off."""
         r = self.rec
-        moved = math.hypot(ticks[-1].pose[0] - start[0], ticks[-1].pose[1] - start[1])
+        end = self._est[len(ticks) - 1] if len(self._est) >= len(ticks) else ticks[-1].pose
+        moved = math.hypot(end[0] - start[0], end[1] - start[1])
         v_mean = float(np.mean([t.v_cmd for t in ticks]))
         if v_mean >= float(r["min_cmd_lin_mps"]) and moved < float(r["min_progress_m"]):
             self.no_progress += 1
@@ -127,7 +174,7 @@ class Executor:
         if self.no_progress < int(r["no_progress_decisions"]):
             return None
         self.no_progress = 0
-        blocked = ticks[-1].pose
+        blocked = end
         lb = self.last_blocked
         same = lb is not None and math.hypot(blocked[0] - lb[0], blocked[1] - lb[1]) <= float(r["same_spot_radius_m"])
         self.repeats = self.repeats + 1 if same else 1
@@ -135,7 +182,7 @@ class Executor:
         if self.repeats > int(r["max_repeats_same_spot"]):
             return None          # backing off does not help here (e.g. high-centred): let the stuck monitor decide
         n = max(1, int(round(float(r["backup_s"]) / self.control_dt)))
-        ticks.extend(self.env.drive(-float(r["backup_speed_mps"]), 0.0, n))
+        ticks.extend(self._drive(-float(r["backup_speed_mps"]), 0.0, n))
         return blocked
 
 
@@ -146,6 +193,15 @@ class EpisodeTrace:
     decisions: List[Dict[str, Any]] = field(default_factory=list)
     positions: List[Tuple[float, float, float]] = field(default_factory=list)
     poses: List[Tuple[float, float, float]] = field(default_factory=list)
+
+
+def _goal_fraction(goal_pixels: np.ndarray, box: Sequence[float]) -> Optional[float]:
+    """Share of goal-instance pixels inside an image box (None without a semantic image or an empty box)."""
+    if goal_pixels.shape == (1, 1) or len(box) != 4:
+        return None
+    x1, y1, x2, y2 = (int(round(v)) for v in box)
+    region = goal_pixels[max(0, y1):max(0, y2), max(0, x1):max(0, x2)]
+    return float(region.mean()) if region.size else None
 
 
 def _goal_pixels(semantic: Optional[np.ndarray], ids: Sequence[int]) -> np.ndarray:
@@ -172,12 +228,17 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
     stuck = StuckMonitor(StuckParams(float(s["window_s"]), float(s["min_displacement_m"]), float(s["min_yaw_change_rad"]),
                                      float(s["min_cmd_lin"]), float(s["min_cmd_ang"])))
     abort_after = float(s["abort_after_s"])
-    fall = ev["fall"]
-    max_tilt, max_drop = float(fall["max_tilt_deg"]), float(fall["max_drop_m"])
+    max_tilt, max_drop = fall_limits(cfg)
 
+    seed = episode_seed(int(cfg["run"]["seed"]), ep.episode_id)
+    if hasattr(env, "reseed_noise"):
+        env.reseed_noise(seed)                     # depth / actuation noise streams of this episode (D-034)
     obs = env.reset(ep.start_position, ep.start_yaw)
     start_height = float(obs.position[1])
-    policy.reset(obs.pose, seed=episode_seed(int(cfg["run"]["seed"]), ep.episode_id))
+    loc = executor.localizer
+    loc.reset(obs.pose, seed=seed ^ 0x5EED)
+    pobs = loc.observation(obs)                    # what the policy sees: its own (estimated) frame
+    policy.reset(pobs.pose, seed=seed)
     executor.reset()
     recoveries = 0
     trace = EpisodeTrace(positions=[tuple(obs.position)], poses=[obs.pose])
@@ -190,9 +251,17 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
     verifier = getattr(policy, "verifier", None)
     n_events = 0
     stop_radius = float(fun["stop_candidate_radius_m"])
+    content_thr = float(fun["verify_label_box_overlap"])
+    verify_rejected_goal = False
+    # Privileged content label per candidate: goal pixels in its latest detection box, from the frame of that
+    # detection (D-046). Position labels depend on where the segmenter put the candidate; this does not.
+    cand_fraction: Dict[int, Optional[float]] = {}
 
     def is_goal(cand: Any) -> bool:            # privileged: for analysis columns / logs only
         return min(footprint_distance(cand.position, g.aabb_min, g.aabb_max) for g in ep.goals) <= stop_radius
+
+    def goal_label(cand: Any, fraction: Optional[float]) -> bool:
+        return fraction >= content_thr if fraction is not None else is_goal(cand)
 
     if language is not None and not language.parse_ok:
         budget = 0
@@ -202,14 +271,24 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
         gp = _goal_pixels(obs.semantic, goal_ids)
         in_view |= int(gp.sum()) >= int(fun["min_goal_pixels"])
         aux = {"semantic": obs.semantic, "goal_ids": {0: goal_ids}} if use_oracle_aux else None
-        d = policy.step(obs, aux)
+        frame_step = policy.step_idx
+        d = policy.step(pobs, aux)
+        for c in policy.memory.candidates:
+            if c.last_step == frame_step and c.last_box is not None:
+                cand_fraction[c.cid] = _goal_fraction(gp, c.last_box)
         if verifier is not None:
             for vev in verifier.events[n_events:]:
                 cand = next(c for c in policy.memory.candidates if c.cid == vev.cid)
-                goal = is_goal(cand)
+                # Two privileged labels: by position (the candidate is near a goal instance) and by content
+                # (goal pixels inside the detection box) - the label the verifier is calibrated against (D-042).
+                box_f, crop_f = _goal_fraction(gp, vev.box_xyxy), _goal_fraction(gp, vev.crop_xyxy)
+                goal = goal_label(cand, box_f)
                 verified_goal |= goal and vev.decision == "stop"
+                verify_rejected_goal |= goal and vev.decision == "reject"
                 if logger is not None:
-                    logger.event("verification", episode_id=ep.episode_id, **event_dict(vev), is_goal_privileged=goal)
+                    logger.event("verification", episode_id=ep.episode_id, **event_dict(vev),
+                                 is_goal_privileged=is_goal(cand), box_goal_fraction=box_f, crop_goal_fraction=crop_f,
+                                 is_goal_by_content=None if box_f is None else box_f >= content_thr)
             n_events = len(verifier.events)
         for det in policy.last_detections:
             x1, y1, x2, y2 = (int(round(v)) for v in det.box_xyxy)
@@ -217,6 +296,7 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
             if box.size and box.mean() >= float(fun["detection_goal_overlap"]):
                 detected = True
         rec = {"type": "decision", "step": step, "kind": d.kind, "reason": d.reason, "pose": list(obs.pose),
+               **({"est_pose": list(pobs.pose)} if loc.mode != "ground_truth" else {}),
                "candidate": d.candidate_id, "n_frontiers": d.n_frontiers, "n_detections": len(policy.last_detections),
                "sim_time": env.sim_time}
         trace.decisions.append(rec)
@@ -231,7 +311,7 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
         if d.kind == "no_frontiers":
             termination = Termination.NO_FRONTIERS
             break
-        ticks, blocked_pose = executor.execute(d, obs.pose)
+        ticks, blocked_pose = executor.execute(d, pobs.pose)
         if blocked_pose is not None:
             recoveries += 1
             rc = cfg["policy"]["recovery"]
@@ -260,6 +340,7 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
                              tilt_deg=float(ticks[-1].tilt_deg))
             break
         obs = env.observe()
+        pobs = loc.observation(obs)
         if aborted:
             termination = Termination.STUCK_ABORT
             if logger is not None and getattr(env, "robot", None) is not None:
@@ -279,8 +360,14 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
                            final_geodesic=d_final, called_stop=termination is Termination.STOP_CALLED)
     m = compute_episode_metrics(geom, rule)
     stop_is_goal: Optional[bool] = None
+    stop_fraction: Optional[float] = None
+    stop_by_position: Optional[bool] = None
+    stop_source = ""
     if termination is Termination.STOP_CALLED and stop_cand is not None:
-        stop_is_goal = is_goal(stop_cand)
+        stop_fraction = cand_fraction.get(stop_cand.cid)
+        stop_by_position = is_goal(stop_cand)
+        stop_is_goal = goal_label(stop_cand, stop_fraction)
+        stop_source = "content" if stop_fraction is not None else "position"
     outcome = classify_episode(OutcomeInputs(termination, m.success, stop_is_goal))
     gap = float(ev["collisions"]["merge_gap_s"])
     recs = [r for r in (calls.records[n_calls0:] if calls is not None else []) if not r.context.warmup]
@@ -288,6 +375,13 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
         recs = [language.parse_record] + recs      # parse cost is charged to every episode (see GoalCache)
     lat = [float(r.latency_total_s) for r in recs]
     events = verifier.events if verifier is not None else []
+    parse_ok = language.parse_ok if language is not None else True
+    hyp_match = language.hypothesis_match if language is not None else None
+    loc_err = loc.error(tuple(trace.poses[-1]))
+    stage = attribute_failure(AttributionInputs(
+        success=m.success, termination=termination, stop_candidate_is_goal=stop_is_goal, parse_ok=parse_ok,
+        hypothesis_match=hyp_match, goal_ever_in_view=bool(in_view), goal_ever_detected=bool(detected),
+        goal_ever_verify_rejected=verify_rejected_goal))
     res = EpisodeResult(
         run_id=run_id, cell_id=cell_id, dataset=ep.dataset, split=ep.split, scene_id=ep.scene_id,
         episode_id=ep.episode_id, goal_category=ep.goal_category, word_type=word_type, command_lang=command_lang,
@@ -300,14 +394,23 @@ def run_episode(env: Any, policy: ObjectNavPolicy, executor: Executor, ep: Objec
         collisions=count_collision_events(contact_flags, contact_times, gap) if contact_flags else 0,
         stuck_time_s=float(stuck.stuck_time_s), goal_ever_in_view=bool(in_view), goal_ever_detected=bool(detected),
         goal_ever_verified_positive=bool(verified_goal),
-        parse_ok=language.parse_ok if language is not None else True,
+        parse_ok=parse_ok,
         parse_attempts=language.parse_attempts if language is not None else 0, n_hypotheses=len(policy.queries),
         target_match=language.target_match if language is not None else None,
-        hypothesis_match=language.hypothesis_match if language is not None else None,
+        hypothesis_match=hyp_match,
         vlm_calls=len(recs), vlm_calls_verify=sum(1 for r in recs if r.method == "verify_candidate"),
         vlm_latency_total_s=float(sum(lat)), vlm_latency_median_s=float(np.median(lat)) if lat else float("nan"),
         vlm_http_retries=sum(int(r.http_retries) for r in recs), vlm_json_retries=sum(int(r.json_retries) for r in recs),
         verify_logprobs_missing=sum(1 for e in events if e.called and e.p_raw is None),
         recoveries=recoveries,
+        goal_mode=language.goal_mode if language is not None else "",
+        pipeline_lang=language.effective_lang if language is not None else "",
+        translation=language.translation if language is not None else "",
+        translation_latency_s=float(language.translation_record.latency_total_s)
+        if language is not None and language.translation_record is not None else 0.0,
+        stop_box_goal_fraction=stop_fraction, stop_is_goal_by_position=stop_by_position, stop_label_source=stop_source,
+        goal_ever_verify_rejected=verify_rejected_goal, failure_stage=stage.value,
+        vlm_call_errors=sum(1 for r in recs if not r.ok),
+        localization=loc.mode, loc_error_final_m=float(loc_err[0]), loc_heading_error_final_deg=math.degrees(loc_err[1]),
     )
     return res, trace

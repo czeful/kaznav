@@ -1,11 +1,13 @@
-# Qwen3-VL-4B-Instruct — second model of the comparison (stage 7). Server not set up yet.
+# Qwen3-VL-4B-Instruct (Apache 2.0) — second model of the comparison (stage 7, D-040).
 name: qwen3vl_4b
 type: qwen_vl
 model_id: qwen3-vl-4b
 hf_repo: Qwen/Qwen3-VL-4B-Instruct
 weights_precision: bf16            # must match Qolda's precision for a fair comparison (D-006)
 server:
-  impl: undecided                  # vLLM / lmdeploy / fallback server; decided in stage 7
+  impl: kznav_fastapi              # servers/qwen_vl_server.py: the Qolda server's API (D-040); tools/start_qwen.sh
+  image_min_pixels: 200704         # 448 x 448 = one InternVL tile, Qolda's smallest view of a crop
+  image_max_pixels: 802816         # four tiles = Qolda's limit (D-007): the same pixel budget for both models
 base_url: http://localhost:23334/v1
 api_key: EMPTY
 http:
@@ -19,7 +21,9 @@ max_tokens:
   verify_candidate: 4
   describe: 256
 top_logprobs: 10
-extra_body: {}
+extra_body:                        # sent with every request, like Qolda's max_num_tiles
+  min_pixels: 200704
+  max_pixels: 802816
 control_think_measurement: false
 image:
   format: png
@@ -34,7 +38,7 @@ capabilities:
   max_context_tokens: 4096
   cost_per_call_usd: null
 prompts:                           # identical prompts by default: differences come from the model
-  parse_goal: default/parse_goal/v1
+  parse_goal: default/parse_goal/v2       # since 2026-10-04 (D-043); earlier runs used v1
   verify_candidate: default/verify_candidate/v1
   describe: default/describe/v1
 warmup_calls: 3

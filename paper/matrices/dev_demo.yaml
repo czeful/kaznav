@@ -1,0 +1,76 @@
+# D-066 stage A / D-068: every variant of the main table on 57 HELD-OUT dev episodes (8 train scenes used nowhere
+# before: splits/hm3d_v1_dev2_demo.txt), calibrated verifiers (D-067), for the supervisor's review. Chooses NOTHING:
+# a preview of the main table on dev, with videos of the same episodes in every arm (run.video.fraction).
+# policy.verification.approach_suspected: the D-065 rule's outcome (dev_fix), set before this matrix runs.
+name: dev_demo
+title: "DEV preview of the main table (held-out dev scenes)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev2_demo.txt
+  - run.video.fraction=0.2
+  - policy.verification.approach_suspected=false     # D-065 rule outcome; updated after dev_fix
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+  qwen: {start: bash tools/start_qwen.sh, pid_file: runs/servers/qwen.pid, health: "http://127.0.0.1:23334/v1/models"}
+arms:
+  - {key: vlfm_en, label: "VLFM-style, English label (no VLM)", lang: none, overrides: []}
+  - {key: oracle, label: "Ground-truth detector (navigation ceiling)", lang: none,
+     overrides: [detector=oracle_semantic, segmenter=box, perception.detection.fusion.enabled=false]}
+  - {key: qolda_kk, label: "Qolda, kk (before D-069)", lang: kk, server: qolda,
+     overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json, policy.belief.first_view_full=false]}
+  - {key: qolda_kkru, label: "Qolda, kk-ru (before D-069)", lang: kk_ru, server: qolda,
+     overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json, policy.belief.first_view_full=false]}
+  - {key: qolda_en, label: "Qolda, en (before D-069)", lang: en, server: qolda,
+     overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json, policy.belief.first_view_full=false]}
+  - {key: qolda_kk_nv, label: "Qolda, kk, no verification", lang: kk, verify: false, server: qolda,
+     overrides: [backend=qolda]}
+  # D-069: the verifier arms below run with the first view counted in full (the stop threshold's own quantity);
+  # the three Qolda arms above ran before the fix and stay as "before D-069"
+  - {key: qolda_kk_fix, label: "Qolda, kk (D-069)", lang: kk, server: qolda, accent: true,
+     overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json, ++policy.belief.first_view_full=true]}
+  - {key: qolda_en_fix, label: "Qolda, en (D-069)", lang: en, server: qolda,
+     overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json, ++policy.belief.first_view_full=true]}
+  - {key: qolda_kkru_fix, label: "Qolda, kk-ru (D-069)", lang: kk_ru, server: qolda,
+     overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json, ++policy.belief.first_view_full=true]}
+  - {key: qwen_kk, label: "Qwen3-VL-4B, kk (D-069)", lang: kk, server: qwen,
+     overrides: [backend=qwen3vl_4b, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json, ++policy.belief.first_view_full=true]}
+  - {key: mt_qwen_kk, label: "NLLB kk→en, then Qwen3-VL-4B in English (D-069)", lang: kk, server: qwen,
+     overrides: [backend=qwen3vl_4b, goal=mt_command, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json, ++policy.belief.first_view_full=true]}
+  - {key: qwen_en, label: "Qwen3-VL-4B, en (D-069)", lang: en, server: qwen,
+     overrides: [backend=qwen3vl_4b, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json, ++policy.belief.first_view_full=true]}
+  - {key: qwen_kk_nv, label: "Qwen3-VL-4B, kk, no verification", lang: kk, verify: false, server: qwen,
+     overrides: [backend=qwen3vl_4b]}
+  - {key: qwen_kkru, label: "Qwen3-VL-4B, kk-ru (D-069)", lang: kk_ru, server: qwen,
+     overrides: [backend=qwen3vl_4b, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json, ++policy.belief.first_view_full=true]}
+  - {key: mt_qwen_kkru, label: "NLLB kk-ru→en, then Qwen3-VL-4B in English (D-069)", lang: kk_ru, server: qwen,
+     overrides: [backend=qwen3vl_4b, goal=mt_command, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json, ++policy.belief.first_view_full=true]}
+  # added 2026-10-15 (D-068): every language without the verifier, so the language step can be compared on its own
+  - {key: qolda_kkru_nv, label: "Qolda, kk-ru, no verification", lang: kk_ru, verify: false, server: qolda,
+     overrides: [backend=qolda]}
+  - {key: qolda_en_nv, label: "Qolda, en, no verification", lang: en, verify: false, server: qolda,
+     overrides: [backend=qolda]}
+  - {key: qwen_kkru_nv, label: "Qwen3-VL-4B, kk-ru, no verification", lang: kk_ru, verify: false, server: qwen,
+     overrides: [backend=qwen3vl_4b]}
+  - {key: qwen_en_nv, label: "Qwen3-VL-4B, en, no verification", lang: en, verify: false, server: qwen,
+     overrides: [backend=qwen3vl_4b]}
+contrasts:
+  - [qolda_kk_fix, qwen_kk]
+  - [qolda_kk_fix, mt_qwen_kk]
+  - [qolda_kkru_fix, qwen_kkru]
+  - [qolda_kkru_fix, mt_qwen_kkru]
+  - [qolda_kk_fix, qolda_kk_nv]
+  - [qwen_kk, qwen_kk_nv]
+  - [qolda_en_fix, qolda_kk_fix]
+  - [qolda_kk_nv, qwen_kk_nv]
+  - [qolda_kk_nv, vlfm_en]
+  - [qolda_kkru_nv, qwen_kkru_nv]
+  - [qolda_en_nv, qolda_kk_nv]
+  - [qwen_en, qwen_kk]
+  - [qolda_kk_fix, qolda_kk]
+decompositions: [[qolda_en_fix, qolda_kk_fix], [qwen_en, qwen_kk]]
+breakdowns: [goal_category]

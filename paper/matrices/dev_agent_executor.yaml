@@ -1,0 +1,30 @@
+# D-063: the standard agent's executor on dev, navigation only (ground-truth detector, as D-004 / D-005): report a
+# blocked move_forward to the policy (virtual obstacle) and how the discrete agent follows a path (lookahead,
+# heading tolerance before a 30-degree turn). Reference without collision marking: dev_agent_stack/oracle (65.3%).
+# Rule fixed before the runs: highest dev SR wins; within 2 episodes, higher SPL. The winner applies to every
+# standard-agent row (table (a)).
+name: dev_agent_executor
+title: "DEV: standard agent executor (collisions, lookahead, heading tolerance)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=habitat_agent
+  - detector=oracle_semantic
+  - segmenter=box                                # the defaults these runs had, before D-064
+  - perception.detection.fusion.enabled=false
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_agent.txt
+  - run.video.fraction=0.03
+  - policy.point_executor.mark_collisions=true
+arms:
+  - {key: e1_la025_t15, label: "collisions marked, lookahead 0.25 m, tolerance 15 deg", lang: none,
+     overrides: [policy.point_executor.lookahead_m=0.25, policy.point_executor.heading_tolerance_deg=15]}
+  - {key: e2_la075_t15, label: "collisions marked, lookahead 0.75 m, tolerance 15 deg", lang: none,
+     overrides: [policy.point_executor.lookahead_m=0.75, policy.point_executor.heading_tolerance_deg=15]}
+  - {key: e3_la075_t25, label: "collisions marked, lookahead 0.75 m, tolerance 25 deg", lang: none,
+     overrides: [policy.point_executor.lookahead_m=0.75, policy.point_executor.heading_tolerance_deg=25]}
+  - {key: e4_la025_t25, label: "collisions marked, lookahead 0.25 m, tolerance 25 deg", lang: none,
+     overrides: [policy.point_executor.lookahead_m=0.25, policy.point_executor.heading_tolerance_deg=25]}
+contrasts: []
+breakdowns: [goal_category]

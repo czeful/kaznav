@@ -21,7 +21,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 import numpy as np
 
 from .frames import habitat_to_map, quat_from_yaw, yaw_from_quat
-from .noise import build_noise_models
+from .noise import build_noise_models, reseed_noise_models
 
 
 @dataclass(frozen=True)
@@ -83,10 +83,18 @@ class HabitatEnv:
         self.workdir = Path(workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.depth_noise, self.actuation_noise, self.odometry_drift = build_noise_models(self.emb["noise"], seed)
+        if self.emb["kind"] != "wheeled" and str(self.emb["noise"].get("actuation", {}).get("model", "none")) != "none":
+            raise ValueError("actuation noise is implemented for the wheeled robot only (the point agent's discrete "
+                             "actions would silently ignore it)")
         wheeled = self.kind == "wheeled"
+        mode = str(self.emb.get("physics", {}).get("mode", "none")) if wheeled else "none"
+        if wheeled and mode not in ("articulated", "kinematic"):
+            raise ValueError(f"embodiment.physics.mode must be articulated | kinematic, got {mode!r}")
+        self.kinematic = mode == "kinematic"          # D-053: the robot's body on its navmesh, no Bullet contacts
+        articulated = mode == "articulated"
 
         physics_file = None
-        if wheeled:
+        if articulated:
             # Habitat only recognises physics config files by this suffix.
             physics_file = self.workdir / "kznav.physics_config.json"
             physics_file.write_text(json.dumps(physics_config_json(self.emb), indent=2), encoding="utf-8")
@@ -96,7 +104,7 @@ class HabitatEnv:
             c.scene_id = scene_id
             if scene.scene_dataset_config:
                 c.scene_dataset_config_file = scene.scene_dataset_config
-            c.enable_physics = wheeled
+            c.enable_physics = articulated
             c.gpu_device_id = int(cfg["sim"]["gpu_device_id"])
             c.random_seed = int(seed)
             if physics_file is not None:
@@ -104,7 +112,7 @@ class HabitatEnv:
             return c
 
         agents = [self._agent_config()]
-        if wheeled and scene.scene_id != "NONE":
+        if articulated and scene.scene_id != "NONE":
             # Stage physics attributes (collision margin, friction) must be registered BEFORE the
             # stage is loaded: start empty, override the stage template, then load the scene (D-015).
             # reconfigure() needs a NEW SimulatorConfiguration: it detects a scene change by comparing
@@ -122,11 +130,16 @@ class HabitatEnv:
         if scene.populate is not None:
             scene.populate(self.sim)
         self._setup_navmesh()
-        self.robot = None
-        if wheeled:
+        self.robot = None                 # articulated wheeled robot (Bullet)
+        self.base = None                  # kinematic wheeled base on the robot's navmesh
+        if articulated:
             from .robot import WheeledRobot
 
             self.robot = WheeledRobot(self.sim, self.emb, self.workdir, self.actuation_noise)
+        elif self.kinematic:
+            from .kinematic import KinematicBase
+
+            self.base = KinematicBase(self.sim.pathfinder, self.emb, self.actuation_noise)
         self.sim_time = 0.0
 
     # ------------------------------------------------------------------ construction
@@ -198,12 +211,18 @@ class HabitatEnv:
         self.navmesh_origin = "recomputed"
 
     # ------------------------------------------------------------------ episode control
+    def reseed_noise(self, seed: int) -> None:
+        """Per-episode noise streams (depth, actuation, odometry), so noise never depends on earlier episodes."""
+        reseed_noise_models((self.depth_noise, self.actuation_noise, self.odometry_drift), seed)
+
     def reset(self, position: Sequence[float], yaw: float) -> Observation:
         """Place the embodiment with its reference point at ``position`` (on the floor) and map heading ``yaw``."""
         self.sim_time = 0.0
         if self.robot is not None:
             self.robot.place(position, yaw)
             self._settle()
+        elif self.base is not None:
+            self.base.place(position, yaw)
         else:
             st = self._hs.AgentState()
             st.position = np.asarray(position, dtype=np.float32)
@@ -221,6 +240,8 @@ class HabitatEnv:
         self.robot.limiter.reset()
 
     def drive(self, v_cmd: float, w_cmd: float, n_ticks: int = 1) -> List[Tick]:
+        if self.base is not None:
+            return self._drive_kinematic(v_cmd, w_cmd, n_ticks)
         if self.robot is None:
             raise RuntimeError("drive() needs the wheeled embodiment; use act() for the point agent")
         out = []
@@ -240,8 +261,20 @@ class HabitatEnv:
             ))
         return out
 
+    def _drive_kinematic(self, v_cmd: float, w_cmd: float, n_ticks: int) -> List[Tick]:
+        out = []
+        for _ in range(n_ticks):
+            v, w, blocked = self.base.step(v_cmd, w_cmd)
+            self.sim_time += self.base.control_dt
+            pos = self.base.reference_position()
+            out.append(Tick(
+                t=self.sim_time, pose=self.base.pose2d(), position=(float(pos[0]), float(pos[1]), float(pos[2])),
+                v_cmd=v, w_cmd=w, collision=blocked, collision_links=("base_link",) if blocked else (),
+                odom_twist=self.base.odometry_twist()))
+        return out
+
     def act(self, action: str) -> Tick:
-        if self.robot is not None:
+        if self.kind == "wheeled":
             raise RuntimeError("act() is for the point agent; the wheeled robot uses drive()")
         collided = bool(self.agent.act(action))  # navmesh sliding; observations are rendered in observe()
         self.sim_time += 1.0
@@ -260,6 +293,13 @@ class HabitatEnv:
             pos = self.robot.reference_position()
             pose = self.robot.pose2d()
             cam = magnum_to_numpy(T)
+        elif self.base is not None:
+            import magnum as mn
+
+            pos = self.base.reference_position()
+            pose = self.base.pose2d()
+            cam = self.camera_transform_at(pos, pose[2])
+            self.agent.scene_node.transformation = mn.Matrix4([[cam[r][c] for r in range(4)] for c in range(4)])
         else:
             st = self.agent.get_state()
             pos = np.asarray(st.position, dtype=np.float64)
@@ -297,7 +337,7 @@ class HabitatEnv:
         node = self.agent.scene_node
         saved = node.transformation
         T = self.camera_transform_at(position, yaw)
-        if self.robot is None:
+        if self.kind != "wheeled":
             # point-agent sensors are offset by the mount height from the agent node
             T = T.copy()
             T[1, 3] -= float(self.emb["sensors"]["rgbd"]["mount"]["height_m"])
@@ -346,6 +386,22 @@ class HabitatEnv:
 
     def navigable_area(self) -> float:
         return float(self.sim.pathfinder.navigable_area)
+
+    def semantic_objects(self) -> Dict[int, "SemanticObject"]:
+        """Instances of the scene's semantic annotation (HM3D: ``*.semantic.txt``), by semantic id; empty
+        for scenes without one. Objects added by a debug ``populate`` are not part of it."""
+        from .episodes import SemanticObject
+
+        out: Dict[int, SemanticObject] = {}
+        scene = self.sim.semantic_scene
+        for o in (scene.objects if scene is not None else []):
+            if o is None:
+                continue
+            c, s = np.asarray(o.aabb.center, dtype=float), np.asarray(o.aabb.sizes, dtype=float)
+            cat = o.category.name() if o.category is not None else ""
+            out[int(o.semantic_id)] = SemanticObject(int(o.semantic_id), str(o.id), str(cat),
+                                                     [float(v) for v in c - s / 2], [float(v) for v in c + s / 2])
+        return out
 
     def close(self) -> None:
         self.sim.close()

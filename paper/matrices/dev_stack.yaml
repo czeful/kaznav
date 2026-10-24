@@ -1,0 +1,39 @@
+# Dev tuning of the D-060 stack on the wheeled robot (kinematic, pitch 20, budget 800): MM-GroundingDINO base +
+# SAM 2.1 masks + target-centric fusion, VLFM-style baseline (English label, no VLM). Rules fixed before the runs
+# (docs/decisions.md D-060): stage 1 = detector threshold 0.35 / 0.50 / 0.65 with fusion at 0.45; stage 2 = fusion
+# 0.30 / 0.60 at the chosen threshold; then the ablation (no fusion, no masks). Highest dev SR wins; within one episode,
+# fewer false stops.
+name: dev_stack
+title: "DEV: detector, masks and fusion for the wheeled robot (D-060)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - detector=mm_grounding_dino_base
+  - segmenter=sam2_tiny
+  - perception.detection.fusion.enabled=true
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev.txt
+  - run.video.fraction=0.05
+arms:
+  # stage 1: detector threshold (fusion 0.45)
+  - {key: t035_f045, label: "MM-GDINO 0.35, SAM, fusion 0.45", lang: none,
+     overrides: [detector.box_threshold=0.35, perception.detection.fusion.reliable_confidence=0.45]}
+  - {key: t050_f045, label: "MM-GDINO 0.50, SAM, fusion 0.45", lang: none,
+     overrides: [detector.box_threshold=0.5, perception.detection.fusion.reliable_confidence=0.45]}
+  - {key: t065_f045, label: "MM-GDINO 0.65, SAM, fusion 0.45", lang: none,
+     overrides: [detector.box_threshold=0.65, perception.detection.fusion.reliable_confidence=0.45]}
+  # stage 2 (after stage 1 chose 0.50, 2026-10-08): fusion's reliable confidence
+  - {key: t050_f030, label: "MM-GDINO 0.50, SAM, fusion 0.30", lang: none,
+     overrides: [detector.box_threshold=0.5, perception.detection.fusion.reliable_confidence=0.3]}
+  - {key: t050_f060, label: "MM-GDINO 0.50, SAM, fusion 0.60", lang: none,
+     overrides: [detector.box_threshold=0.5, perception.detection.fusion.reliable_confidence=0.6]}
+  # ablation for the paper (chooses nothing): each D-060 component off in turn
+  - {key: t050_nofusion, label: "MM-GDINO 0.50, SAM, no fusion", lang: none,
+     overrides: [detector.box_threshold=0.5, perception.detection.fusion.enabled=false]}
+  - {key: t050_nosam, label: "MM-GDINO 0.50, box masks (D-054 filter), fusion 0.45", lang: none,
+     overrides: [detector.box_threshold=0.5, segmenter=box, perception.detection.fusion.reliable_confidence=0.45]}
+contrasts: []
+breakdowns: [goal_category]

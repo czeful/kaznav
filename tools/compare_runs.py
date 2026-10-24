@@ -42,7 +42,9 @@ def verifier_stats(run_dir: Path) -> dict:
             e = json.loads(line)
             if e.get("type") != "verification" or not e.get("called") or e.get("p_raw") is None:
                 continue
-            yes, goal = e["p_raw"] >= 0.5, bool(e["is_goal_privileged"])
+            # label by content (goal pixels in the box, D-042) when the run logged it, else by position (D-037)
+            lab = e.get("is_goal_by_content")
+            yes, goal = e["p_raw"] >= 0.5, bool(e["is_goal_privileged"] if lab is None else lab)
             tp += yes and goal
             fn += (not yes) and goal
             fp += yes and not goal
@@ -60,6 +62,9 @@ def arm_row(label: str, g: pd.DataFrame, manifest: dict, run_dir: Path) -> dict:
     sr = wilson_ci(int(g.success.sum()), n)
     spl = mean_ci(g.spl.astype(float).to_numpy(), n_boot=5000)
     lat = g.vlm_latency_total_s.astype(float)
+    # schema v3 columns (D-038/D-039); older runs have no translation and score their hypotheses the same way
+    mt = g["translation_latency_s"].astype(float) if "translation_latency_s" in g else pd.Series(0.0, index=g.index)
+    hyp = g.hypothesis_match.map({True: 1.0, False: 0.0, "True": 1.0, "False": 0.0})
     return {
         "arm": label, "n": n,
         "SR": fmt_ci(sr.estimate, sr.low, sr.high, pct=True),
@@ -73,6 +78,8 @@ def arm_row(label: str, g: pd.DataFrame, manifest: dict, run_dir: Path) -> dict:
         "model fail": int((g.outcome == "model_failure").sum()),
         "VLM calls/ep": f"{g.vlm_calls.mean():.1f}" if g.vlm_calls.sum() else "-",
         "VLM s/ep": f"{lat.mean():.1f}" if g.vlm_calls.sum() else "-",
+        "MT s/ep": f"{mt.mean():.1f}" if mt.sum() else "-",
+        "query names goal": f"{hyp.mean():.0%}" if hyp.notna().any() else "-",
         "wall s/ep": f"{g.wall_time_s.mean():.0f}",
         **verifier_stats(run_dir),
     }
@@ -117,8 +124,10 @@ def main() -> None:
              "Arms (run directories):", ""] + [f"- **{l}**: `{dirs[l]}`" for l in labels] + [
              "", "SR: Wilson 95% CI; SPL: bootstrap 95% CI over episodes. Funnel columns: share of episodes "
              "where the goal was ever in view / detected (box on the goal) / accepted by the verifier. "
-             "Verifier sens/spec: in-loop calls, raw P(yes) >= 0.5 vs. whether the candidate is a goal "
-             "instance (privileged, analysis only).", "",
+             "Verifier sens/spec: in-loop calls, raw P(yes) >= 0.5 vs. whether the crop shows the goal "
+             "(goal pixels in the box, D-042; runs before it: the candidate's position) - privileged, analysis only. Query names goal: share of the episodes with a parsed goal "
+             "whose detector queries name the goal category (lexicon synonyms); MT s/ep: translator latency "
+             "(D-039), not part of VLM s/ep.", "",
              table.to_markdown(index=False), "",
              f"Paired contrasts vs **{args.ref}** (same episodes; diff = arm − ref, paired bootstrap 95% CI; "
              "exact McNemar on success):", ""]

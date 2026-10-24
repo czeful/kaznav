@@ -27,7 +27,8 @@ the pilot showed the verifier is confidently wrong on cultural items.
 
 Candidate evidence accumulates in log-odds around the same base rate:
 logit P = logit(pi) + gamma * sum_i (logit(q_i) - logit(pi)); gamma < 1
-discounts correlated views of the same object.
+discounts correlated views of the same object. With ``first_view_full`` (D-069) the first view counts in full and
+gamma applies to the repeated views only: one view gives P = q_1, the quantity the stop threshold was fitted on.
 """
 from __future__ import annotations
 
@@ -133,6 +134,7 @@ class CandidateEvidence:
     base_rate: float
     view_discount: float = 1.0
     observations: List[float] = field(default_factory=list)
+    first_view_full: bool = False      # D-069: the discount applies to repeated views, not to the first one
 
     def add(self, p_target: float) -> float:
         self.observations.append(float(p_target))
@@ -142,5 +144,9 @@ class CandidateEvidence:
         if not self.observations:
             return self.base_rate
         prior = logit(self.base_rate)
-        total = prior + self.view_discount * sum(logit(q) - prior for q in self.observations)
+        diffs = [logit(q) - prior for q in self.observations]
+        if self.first_view_full:
+            total = prior + diffs[0] + self.view_discount * sum(diffs[1:])
+        else:
+            total = prior + self.view_discount * sum(diffs)
         return sigmoid(total)

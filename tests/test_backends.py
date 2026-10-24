@@ -229,9 +229,9 @@ class TestReplay:
         _, _, calls = self.record_run(tmp_path, backend_spec, prompt_lib)
         changed = tmp_path / "prompts"
         shutil.copytree(repo_root / "prompts", changed)
-        f = changed / "default" / "parse_goal" / "v1.yaml"
-        f.write_text(f.read_text(encoding="utf-8") + "\n# edited\n", encoding="utf-8")
         spec = backend_spec("replay")
+        f = changed / f"{spec['prompts']['parse_goal']}.yaml"           # the prompt version the config uses
+        f.write_text(f.read_text(encoding="utf-8") + "\n# edited\n", encoding="utf-8")
         spec["replay"]["sources"] = [str(calls)]
         rb = create_backend(spec, prompts=PromptLibrary(changed))
         with pytest.raises(InvalidOutputError):

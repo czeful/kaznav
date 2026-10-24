@@ -52,6 +52,7 @@ class GoalHypotheses(BaseModel):
     attributes: TargetAttributes = Field(default_factory=TargetAttributes)
     rooms: List[str] = Field(default_factory=list)
     landmarks: List[str] = Field(default_factory=list)
+    target_en: str = Field(default="", description="The target's plain English name, one or two words")
 
     @field_validator("target")
     @classmethod
@@ -59,6 +60,16 @@ class GoalHypotheses(BaseModel):
         v = _clean_text(v)
         if not v:
             raise ValueError("target is blank")
+        return v
+
+    @field_validator("target_en")
+    @classmethod
+    def _target_en_english(cls, v: str) -> str:
+        """Optional (prompts before parse_goal v3 do not ask for it); when given, English like the hypotheses: it is
+        the language-independent verification question's object name (D-071)."""
+        v = _clean_text(v)
+        if _CYRILLIC.search(v):
+            raise ValueError(f"target_en must be English (Latin script), got {v!r}")
         return v
 
     @field_validator("rooms", "landmarks")

@@ -1,0 +1,31 @@
+# D-070 stage 1b: the "last metre" of the verifier arms. Qolda kk, calibrated on 18 dev scenes (calib/qolda_dev18.json),
+# D-069 on (the default), on the 85 runnable dev-pool episodes outside every calibration artifact.
+#   a0 - as now; a1 - commit to the approached candidate until the verifier decides (the D-065 mechanism);
+#   a2 - a1 + ask from up to 1.5 m when the whole object is in view + stop where it is in view (visible stop mode).
+# Rule (docs/decisions.md D-070): the arm with the most successes is adopted for every verifier arm if it has at least
+# 3 more than a0; if a1 and a2 both pass within 1 success of each other, the simpler a1. Otherwise nothing changes.
+name: dev_last_metre
+title: "DEV: the last metre of the verifier arms (D-070, stage 1b)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_tune85.txt
+  - run.video.fraction=0.05
+  - backend=qolda
+  - policy.stop.calibration_file=calib/qolda_dev18.json
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+arms:
+  - {key: a0_qolda_kk, label: "Qolda kk, as now", lang: kk, server: qolda, overrides: []}
+  - {key: a1_qolda_kk, label: "Qolda kk, commit to the approached candidate", lang: kk, server: qolda,
+     overrides: [policy.verification.commit_approach=true]}
+  - {key: a2_qolda_kk, label: "Qolda kk, commit + ask from afar + stop where in view", lang: kk, server: qolda,
+     accent: true,
+     overrides: [policy.verification.commit_approach=true, policy.verification.verify_range_m=1.5,
+                 policy.approach.stop_mode=visible]}
+contrasts: [[a1_qolda_kk, a0_qolda_kk], [a2_qolda_kk, a0_qolda_kk], [a2_qolda_kk, a1_qolda_kk]]
+breakdowns: [goal_category]

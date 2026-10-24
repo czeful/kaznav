@@ -10,7 +10,7 @@ SoftSPL, DTS) с доверительными интервалами и парн
 - Определения метрик: [docs/measurement_protocol.md](docs/measurement_protocol.md)
 - Что чинили при установке: [INSTALL_LOG.md](INSTALL_LOG.md)
 
-## Состояние (2026-09-24)
+## Состояние (2026-10-05)
 
 | Этап | Статус |
 |---|---|
@@ -20,11 +20,14 @@ SoftSPL, DTS) с доверительными интервалами и парн
 | 3. Симуляция: робот, движение, сенсоры, столкновения, застревание, обрывы | **готов на тестовых сценах**; на HM3D не проверено (нет данных) |
 | 3. Наклон камеры | ждёт HM3D |
 | 4. Карта занятости, фронтиры, планировщик, политика ObjectNav, раннер эпизода | **работает** на отладочной сцене; на HM3D не запускалось |
-| 4. Детектор GroundingDINO (HF), карта ценности SigLIP2 (VLFM-стиль) | **работает**; сверка с GroundingDINO пилота не сделана (D-009) |
+| 4. Детектор GroundingDINO (HF), карта ценности SigLIP2 (VLFM-стиль) | **работает**; HF-реализация совпадает с оригиналом (89/89 рамок, D-009) |
 | 5. Qolda: свой сервер, разбор команды → гипотезы, верификация перед остановкой, байесовские веса | **работает в цикле навигации** (D-028); калибровка на dev — ждёт HM3D |
 | 5. Языковая часть на данных пилота (30 команд, 32 кропа) | **замерено** (D-029) |
-| 6. Оценка, отчёты | метрики, CSV эпизодов, парные сравнения плеч (`tools/compare_runs.py`) готовы; отчёт статьи — нет |
-| 7. Qwen3-VL-4B, матричный прогон | конфиг и класс есть, сервер не поднят |
+| 5. Абляции цели: одна гипотеза (D-038), перевод NLLB-200 (D-039) | **замерено** на отладочной сцене и 30 командах пилота: перевод теряет культурные предметы (1/15 против 11/15 у Qolda), польза нескольких гипотез пока не показана |
+| 6. Оценка, отчёты | метрики, CSV эпизодов, парные сравнения; раннер HM3D/OVON (D-041), калибровка по dev (D-042), таблицы статьи (D-044) **готовы, проверены без HM3D** — ждут данных |
+| 7. Qwen3-VL-4B, матричный прогон | **работает** (свой сервер, D-040): на казахском Qwen 2/20 против 6/20 у Qolda, на английском 9/20 против 6/20; на культурных словах пилота 3/15 против 11/15 |
+| 8. К статье: этап провала (D-045), метка остановки по содержимому и сбои эпизодов (D-046), статистика по сценам (D-047), банк естественных команд (D-048), мощность (D-049), матрица плеч (D-050), шумы и одометрия (D-051), [план анализа](docs/analysis_plan.md) | **готово, проверено без HM3D**; план — черновик до заморозки; команды пишут носители языка |
+| 9. HM3D: данные v0.1, проверка целей, доступность эпизодов, кинематический робот (D-052, D-053) | **подключено**: val (20 сцен, 2000 эп.), train качается; дымовой прогон на val_mini с оракулом - кинематический робот 10/11 |
 
 Тесты: `python -m pytest` (без видеокарты и без сервера модели; интеграционные с Habitat пропускаются без него).
 Проверки физики — [docs/validation/](docs/validation/). Решения и замеры — [docs/decisions.md](docs/decisions.md).
@@ -111,14 +114,18 @@ bash tools/wsl.sh python tools/compare_views.py --scene ~/kznav_data/scene_datas
 
 # сервер Qolda (bf16, порт 23333, 4 тайла): servers/qolda_server.py в ~/qolda-env, в фоне
 bash tools/start_qolda.sh            # или tools/restart_qolda.sh; лог runs/servers/qolda.log
+# сервер Qwen3-VL-4B (bf16, порт 23334, тот же бюджет пикселей, D-040); сервер Qolda перед этим остановить
+bash tools/start_qwen.sh             # лог runs/servers/qwen.log; затем backend=qwen3vl_4b в любой команде
 curl http://localhost:23333/kznav/stats
 
 # языковая часть на данных пилота: разбор 30 команд / верификация 32 кропов (1, 4, 12 тайлов)
 bash tools/wsl.sh python tools/eval_language.py parse
 bash tools/wsl.sh python tools/eval_language.py verify --tiles 1,4,12
+# те же 30 команд через абляции цели: multi, top1, mt_word, mt_command (D-038, D-039)
+bash tools/wsl.sh bash tools/run_language_ablations.sh
 
 # эпизоды с казахской командой: разбор Qolda -> GroundingDINO + SigLIP2 -> верификация Qolda
-bash tools/wsl.sh python tools/run_debug_episodes.py --lang kk detector=grounding_dino_tiny value_encoder=siglip2_base
+bash tools/wsl.sh python tools/run_debug_episodes.py --lang kk detector=mm_grounding_dino_base value_encoder=siglip2_base
 #   --lang kk_ru (смешанные), --no-verify (без верификации); видео с командой, гипотезами и ответами модели
 
 # то же, с логом памяти GPU (nvidia-smi раз в секунду + пик сервера)
@@ -127,6 +134,56 @@ bash tools/wsl.sh bash tools/with_gpu_log.sh runs/servers/gpu.csv python tools/r
 # матрица плеч на одних и тех же эпизодах + парные сравнения -> runs/compare/matrix_<время>/comparison.md
 bash tools/wsl.sh bash tools/run_debug_matrix.sh
 python tools/compare_runs.py --ref gd_value gd_value=runs/debug/<a> qolda_kk=runs/debug/<b>
+
+# --- HM3D / OVON (D-041, D-052; данные - в $KZNAV_DATA_ROOT, токен Matterport - в ~/.config/kznav/matterport.env) ---
+# сцены HM3D v0.1 + эпизоды ObjectNav v1; train - потоком и только 80 сцен с эпизодами (весь архив 26 GB не нужен)
+bash tools/wsl.sh bash tools/download_hm3d.sh val
+bash tools/wsl.sh bash tools/download_hm3d_subset.sh train
+# цели против разметки сцен и какие эпизоды может пройти робот (episodes.csv для make_split --runnable)
+bash tools/wsl.sh python tools/check_hm3d.py --dataset hm3d_objectnav_v1_val --per-scene 0 --embodiments wheeled_vacuum_kinematic --out runs/hm3d_check/val_kinematic
+bash tools/wsl.sh python tools/diagnose_reachability.py --dataset hm3d_objectnav_v1_valmini --out runs/hm3d_check/reach
+# дымовой прогон на val_mini (сцены val, роль smoke: не результат, ничего не настраивать)
+bash tools/wsl.sh python tools/run_eval.py --lang none --out runs/smoke/x dataset=hm3d_objectnav_v1_valmini embodiment=wheeled_vacuum_kinematic detector=oracle_semantic
+# колёсный робот в основной таблице - кинематика на своём navmesh (D-053): embodiment=wheeled_vacuum_kinematic;
+# физический робот (embodiment=wheeled_vacuum) - для исследования устойчивости и валидации физики
+# фиксированные выборки: dev из train-сцен, тест - сбалансированная подвыборка val (50 вложена в 100)
+python tools/make_split.py dev  --dataset hm3d_objectnav_v1_train --scenes 8 --per-category 10 --out splits/hm3d_v1_dev.txt
+python tools/make_split.py test --dataset hm3d_objectnav_v1_val --per-category 100 --out splits/hm3d_v1_test_primary.txt
+python tools/make_split.py test --dataset hm3d_objectnav_v1_val --per-category 50 --out splits/hm3d_v1_test_secondary.txt
+# таблица (а), стандартный агент: простая случайная выборка из всего val, без стратификации (D-064)
+python tools/make_split.py test --dataset hm3d_objectnav_v1_val --random 300 --out splits/hm3d_v1_table_a.txt
+# естественные команды (D-048): таблица для авторов -> импорт -> проверка (инструкция: docs/command_authoring.md)
+python tools/commands.py sheet --lexicon lexicon/hm3d_objectnav.yaml --authors A01,A02,A03 --out commands/natural/hm3d_objectnav_v1_sheet.csv
+python tools/commands.py import commands/natural/hm3d_objectnav_v1_sheet.csv --dataset hm3d_objectnav_v1 --lexicon lexicon/hm3d_objectnav.yaml --out commands/natural/hm3d_objectnav_v1.yaml
+python tools/commands.py validate commands/natural/hm3d_objectnav_v1.yaml --min-test 10
+# объём выборки до тестовых прогонов (D-049): по отладочным парам плеч -> таблица мощности
+python tools/power_analysis.py estimate runs/debug/<плечо a> runs/debug/<плечо b>
+python tools/power_analysis.py table --p-a 0.30 --psi 0.30 --m 5 --out paper/power
+# прогон: любой робот / модель / язык / режим цели; --resume продолжает папку прогона
+# восприятие по умолчанию - стек D-060 (MM-GroundingDINO base 0.50 + SAM 2.1 + слияние 0.45, D-064);
+# абляции: detector=none|oracle_semantic|grounding_dino_tiny, segmenter=box, perception.detection.fusion.enabled=false
+bash tools/wsl.sh python tools/run_eval.py --lang kk embodiment=wheeled_vacuum_kinematic backend=qolda value_encoder=siglip2_base run.episodes.subset_file=splits/hm3d_v1_dev.txt dataset=hm3d_objectnav_v1_train policy.stop.calibration_file=calib/qolda_dev.json
+# калибровка проверки и порог - только по dev-прогонам (D-042)
+python tools/fit_calibration.py runs/eval/<dev прогон> --out calib/qolda_dev.json
+# наклон камеры (D-004) и бюджет эпизода (D-005) на dev
+bash tools/wsl.sh python tools/dev_studies.py pitch --pitches -15,-5,0,10,20 --out runs/dev/pitch dataset=hm3d_objectnav_v1_train run.episodes.subset_file=splits/hm3d_v1_dev.txt
+python tools/dev_studies.py budget runs/eval/<dev прогон с большим лимитом> --out runs/dev/budget
+# вся матрица статьи (D-050): план, прогон (серверы поднимаются по очереди), описание для таблиц
+bash tools/wsl.sh python tools/run_matrix.py plan paper/matrices/hm3d_v1_main.yaml
+bash tools/wsl.sh python tools/run_matrix.py run  paper/matrices/hm3d_v1_main.yaml
+bash tools/wsl.sh python tools/run_matrix.py spec paper/matrices/hm3d_v1_main.yaml            # + --part secondary
+# таблицы и графики статьи по YAML-описанию плеч (D-044, D-047): контрасты по сценам, этапы провала,
+# разложение разности SR по этапам (H1); пример на отладочных прогонах
+python tools/make_paper_tables.py paper/specs/debug_ycb_example.yaml --out runs/paper_check
+# сверка GroundingDINO: HF против оригинала (D-009)
+bash tools/wsl.sh python tools/gdino_crosscheck.py frames --out runs/gdino_check
+
+# абляции цели на эпизодах матрицы: одна гипотеза, NLLB-слово (с проверкой и без), NLLB-команда
+# -> runs/ablation_arms_<время>.txt; NLLB-200 на CPU, первый запуск скачивает 2.5 GB
+bash tools/wsl.sh bash tools/run_ablation_arms.sh
+
+# Qwen3-VL-4B вместо Qolda: языковые проверки пилота + плечи kk / kk-ru / en / kk без проверки
+bash tools/wsl.sh bash tools/run_qwen_arms.sh
 
 # видео всех эпизодов плеч (полный повтор = проверка воспроизводимости), ролик и страница результатов
 bash tools/wsl.sh bash tools/run_video_arms.sh
@@ -142,6 +199,7 @@ python tools/make_results_page.py --compare runs/compare/<dir> --parse runs/lang
 backend=qolda | qwen3vl_4b | mock | replay | qolda_think_control
 embodiment=wheeled_vacuum | habitat_agent
 dataset=hm3d_objectnav_v1_val | hm3d_ovon_val_unseen | custom_room
+goal=multi | top1 | mt_word | mt_command      # что разбор цели отдаёт конвейеру (D-038, D-039)
 ```
 
 Новая модель добавляется так: файл `configs/backend/<name>.yaml` плюс либо подкласс
@@ -158,5 +216,3 @@ dataset=hm3d_objectnav_v1_val | hm3d_ovon_val_unseen | custom_room
   dev-эпизодов, и пересечение с оцениваемыми эпизодами — ошибка.
 - Собственная комната (`dataset=custom_room`, `role: debug`) не входит в основные
   таблицы.
-#   k a z n a v  
- 

@@ -1,0 +1,144 @@
+# Natural command bank imported from hm3d_objectnav_v1_sheet.csv by tools/commands.py - edit the sheet, not this file.
+# Authoring and review rules: docs/command_authoring.md (D-048).
+format: kznav.natural_commands/v1
+dataset: hm3d_objectnav_v1
+lexicon: lexicon/hm3d_objectnav.yaml
+languages:
+- kk
+- kk_ru
+- en
+min_reviews: 1
+source_sheet: commands/natural/hm3d_objectnav_v1_sheet.csv
+commands:
+- id: chair-a01-01
+  category: chair
+  author: A01
+  split: dev
+  style: direct
+  texts:
+    kk: Орындықты тауып берші
+    kk_ru: Стулды найди
+    en: Find the chair.
+  reviews: []
+  status: draft
+- id: chair-a02-01
+  category: chair
+  author: A02
+  split: dev
+  style: need
+  texts:
+    kk: Орындық жетіспей тұр, тауып берші
+    kk_ru: Орындық жетіспей тұр, можешь найти?
+    en: We're missing a chair. Can you find one for me?
+  reviews: []
+  status: draft
+- id: bed-a01-01
+  category: bed
+  author: A01
+  split: dev
+  style: direct
+  texts:
+    kk: Төсекті тауып берші
+    kk_ru: Кроватьты можешь тауып беру?
+    en: Can you find the bed?
+  reviews: []
+  status: draft
+- id: bed-a02-01
+  category: bed
+  author: A02
+  split: dev
+  style: need
+  texts:
+    kk: Төсек қайда? Шаршап тұрмын
+    kk_ru: Кровать где? Шаршап тұрмын
+    en: Where's the bed? I'm tired.
+  reviews: []
+  status: draft
+- id: plant-a01-01
+  category: plant
+  author: A01
+  split: dev
+  style: direct
+  texts:
+    kk: Гүлді тауып берші
+    kk_ru: Цветокты тауып берші
+    en: Find the plant.
+  reviews: []
+  status: draft
+- id: plant-a02-01
+  category: plant
+  author: A02
+  split: dev
+  style: need
+  texts:
+    kk: Осы үйде өсімдік бар ма? Болса, соған апаршы
+    kk_ru: В этом доме өсімдік бар ма? Болса, отвези меня туда
+    en: Is there a plant in this house? If there is, take me to it.
+  reviews: []
+  status: draft
+- id: toilet-a01-01
+  category: toilet
+  author: A01
+  split: dev
+  style: direct
+  texts:
+    kk: Дәретханада унитазды тауып берші
+    kk_ru: Туалетте унитазды тауып берші
+    en: Find the toilet in the bathroom.
+  reviews: []
+  status: draft
+- id: toilet-a02-01
+  category: toilet
+  author: A02
+  split: dev
+  style: direct
+  texts:
+    kk: Унитаз қай жерде? Тауып берші
+    kk_ru: Где унитаз? Тауып берші
+    en: Where's the toilet? Can you find it for me?
+  reviews: []
+  status: draft
+- id: tv_monitor-a01-01
+  category: tv_monitor
+  author: A01
+  split: dev
+  style: need
+  texts:
+    kk: Кино көргім келеді, теледидар қайда?
+    kk_ru: Кино хочу посмотреть, теледидар қайда?
+    en: I want to watch a movie. Where's the TV?
+  reviews: []
+  status: draft
+- id: tv_monitor-a02-01
+  category: tv_monitor
+  author: A02
+  split: dev
+  style: need
+  texts:
+    kk: Жаңалық көргім келеді, теледидар қай жақта?
+    kk_ru: Жаңалық көргім келеді, телевизор где?
+    en: I want to watch the news. Where's the TV?
+  reviews: []
+  status: draft
+- id: sofa-a01-01
+  category: sofa
+  author: A01
+  split: dev
+  style: indirect
+  texts:
+    kk: Маған диванның астын жинап берші
+    kk_ru: Маған диванның астын можешь убрать
+    en: Can you clean under the couch for me?
+  reviews: []
+  status: draft
+- id: sofa-a02-01
+  category: sofa
+  author: A02
+  split: dev
+  style: need
+  texts:
+    kk: Менің отырғым келеді, диван қайда?
+    kk_ru: Хочу сесть, диван қайда?
+    en: I want to sit down. Where's the couch?
+  reviews: []
+  status: draft

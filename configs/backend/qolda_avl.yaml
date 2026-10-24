@@ -1,0 +1,37 @@
+# Qolda-AVL (issai/Qolda-AVL-5B, 5.1B: Qwen3-VL-4B-Thinking + fine-tuned Whisper-large-v3-turbo encoder), Apache 2.0.
+# Hears the command (D-077). In-process transformers 5.x in its own venv (~/avl-env, runs/jobs/avl_env.sh). The
+# 10.2 GB of bf16 weights do not fit on the GPU next to the robot's perception: the commands are parsed first
+# (tools/parse_speech_commands.py) and the robot runs replay the parses (backend=replay, the same parse prompt).
+name: qolda_avl
+type: qolda_avl
+model_id: qolda-avl-5b
+hf_repo: issai/Qolda-AVL-5B
+revision: e09b9c23faee8429b4d503636176edfc4ce061a6   # the snapshot downloaded 2026-10-23
+weights_precision: bf16
+device: cuda
+input: speech                      # speech: hears the recording (prompt speech/parse_goal/v1) | text: reads the
+                                   # command (backend.prompts.parse_goal=default/parse_goal/v4), the model control
+thinking: skip                     # skip: an empty think block is prefilled (D-077: greedy native thinking loops,
+                                   # 2048 tokens / 96 s without </think>) | native: the model's own <think> block
+speech:
+  root: data/speech                # data/speech/<speaker>/<command id>__<lang>.wav (outside git: voices)
+  speaker: tts_mms                 # tts_mms = the synthetic pilot (tools/make_tts_commands.py); S01... = people
+  commands: commands/natural/hm3d_objectnav_v1.yaml
+transcribe_instruction: "Transcribe this audio verbatim in its original language. Output only the transcript."
+max_new_tokens:
+  parse_goal: 2048                 # thinking included
+  transcribe: 1024
+parse:
+  max_attempts: 3
+  min_hypotheses: 1
+  max_hypotheses: 8
+capabilities:
+  supports_logprobs: false
+  supports_images: false           # parses only; the robot verifies with the local SigLIP verifier (D-075)
+  max_context_tokens: null
+  cost_per_call_usd: null
+prompts:
+  parse_goal: speech/parse_goal/v1
+  verify_candidate: default/verify_candidate/v1
+  describe: default/describe/v1
+warmup_calls: 0

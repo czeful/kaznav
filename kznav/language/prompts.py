@@ -76,6 +76,10 @@ def _validate(ref: str, data: Mapping[str, Any]) -> None:
         for key in ("system", "user_template", "retry_template"):
             if key not in data:
                 raise ValueError(f"{ref}: missing {key!r}")
+        if data.get("input", "text") not in ("text", "audio"):
+            raise ValueError(f"{ref}: input must be 'text' or 'audio'")
+        if data.get("input") == "audio" and not data.get("audio_instruction"):
+            raise ValueError(f"{ref}: an audio prompt needs 'audio_instruction' (D-077)")
     elif task == "verify_candidate":
         langs = data.get("languages") or {}
         if not langs:

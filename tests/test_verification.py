@@ -61,6 +61,18 @@ def test_confident_yes_stops_after_one_call():
     assert ev.called and ev.decision == "stop" and ev.p_candidate > 0.6
 
 
+def test_single_view_above_the_calibrated_threshold_stops_only_with_first_view_full():
+    """D-069: the stop threshold is fitted on single calibrated calls; with the discount on the first view too, a
+    call above it (0.35 >= 0.30, base rate 0.2) stays below it as the candidate's probability and the robot waits."""
+    kw = dict(stop_threshold=0.30, base_rate=0.2, calibrated=True)
+    old = Verifier(FakeBackend([0.35]), VerifyQuery("x", "kk"), params(**kw), None, view_discount=0.5)
+    assert old.check(cand(), RGB, 0, 1).decision == "wait"
+    new = Verifier(FakeBackend([0.35]), VerifyQuery("x", "kk"), params(**kw), None, view_discount=0.5,
+                   first_view_full=True)
+    ev = new.check(cand(), RGB, 0, 1)
+    assert ev.decision == "stop" and ev.p_candidate == pytest.approx(0.35)
+
+
 def test_confident_no_rejects_and_marks_candidate():
     c = cand()
     v = Verifier(FakeBackend([0.05]), VerifyQuery("банан", "kk"), params(), None)
@@ -230,3 +242,17 @@ def test_tiny_box_gets_no_call_until_it_is_big_enough():
     c.last_box = (30, 30, 70, 70)                                           # 40 x 40 px
     ev = v.check(c, RGB, 1, 1)
     assert fb.calls == 1 and ev.decision == "stop"
+
+
+def test_verifier_arms_can_approach_suspected_candidates():
+    """D-065: a goal seen once and then missed from closer by drops below the fused bar; with a verifier and
+    ``approach_suspected`` the policy keeps it eligible (the VLM decides on the spot), without a verifier it does not."""
+    for flag, verifier, expected in [(False, object(), False), (True, object(), True), (True, None, False)]:
+        cfg = small_cfg("wheeled_vacuum", detector="none")
+        cfg["perception"]["detection"]["fusion"]["enabled"] = True
+        cfg["policy"]["verification"]["approach_suspected"] = flag
+        policy = ObjectNavPolicy(cfg, create_detector(cfg["detector"]), create_segmenter(cfg["segmenter"]), ["chair"],
+                                 MockEnv(cfg, room_with_boxes(4.0)).K, verifier=verifier)
+        c = ObjectCandidate(0, 0, np.array([1.0, 0.0, -1.0]), np.array([[1.0, 1.0]]), 0.51, 1, 0, 0, conf=0.26)
+        policy.memory.candidates.append(c)
+        assert (policy._best() is c) == expected, (flag, verifier)

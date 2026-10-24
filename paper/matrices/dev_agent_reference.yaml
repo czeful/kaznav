@@ -1,0 +1,29 @@
+# Dev reference on the STANDARD Habitat agent (camera 0.88 m, habitat-lab ObjectNav settings, 500 steps): where does
+# our pipeline stand against published zero-shot methods (VLFM ~51-52% SR on HM3D v1 val)? Dev episodes (train scenes,
+# 25 per category, not filtered for the wheeled robot: splits/hm3d_v1_dev_agent.txt), so the numbers are a proxy for
+# val. Detector as in table (a): the literature's GroundingDINO setting (0.35, no box filter). The VLM arm runs with
+# the UNCALIBRATED verifier (identity, debug threshold) - calibration comes later. Baseline before the D-060 upgrades.
+name: dev_agent_reference
+title: "DEV: standard Habitat agent, reference before the navigation upgrades"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=habitat_agent
+  - detector=grounding_dino_tiny
+  - segmenter=box                                # the defaults these runs had, before D-064
+  - perception.detection.fusion.enabled=false
+  - ++detector.box_threshold=0.35          # ++: the oracle detector has no such key
+  - ++detector.max_box_area_frac=1.0
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_agent.txt
+  - run.video.fraction=0.03
+  - policy.belief.first_view_full=false        # ran before D-069 (D-070 made true the default)
+servers:
+  qwen: {start: bash tools/start_qwen.sh, pid_file: runs/servers/qwen.pid, health: "http://127.0.0.1:23334/v1/models"}
+arms:
+  - {key: vlfm_en, label: "VLFM-style, English label (no VLM)", lang: none, overrides: []}
+  - {key: oracle, label: "ground-truth detector (ceiling)", lang: none, overrides: [detector=oracle_semantic]}
+  - {key: qwen_en, label: "Qwen3-VL-4B, en (uncalibrated)", lang: en, server: qwen, overrides: [backend=qwen3vl_4b]}
+contrasts: []
+breakdowns: [goal_category]

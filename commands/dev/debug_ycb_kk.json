@@ -1,0 +1,119 @@
+[
+ {
+  "id": "kk_where_banana",
+  "command_kk": "Банан қайда? Тауып бер.",
+  "target_kk": "банан",
+  "gold_en": [
+   "banana"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_need_banana",
+  "command_kk": "Маған банан керек, соны тауып бер.",
+  "target_kk": "банан",
+  "gold_en": [
+   "banana"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_goto_banana",
+  "command_kk": "Банан тұрған жерге бар.",
+  "target_kk": "банан",
+  "gold_en": [
+   "banana"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_where_mustard-bottle",
+  "command_kk": "Қыша бөтелкесі қайда? Тауып бер.",
+  "target_kk": "қыша бөтелкесі",
+  "gold_en": [
+   "mustard bottle",
+   "mustard"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_need_mustard-bottle",
+  "command_kk": "Маған қыша бөтелкесі керек, соны тауып бер.",
+  "target_kk": "қыша бөтелкесі",
+  "gold_en": [
+   "mustard bottle",
+   "mustard"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_goto_mustard-bottle",
+  "command_kk": "Қыша бөтелкесі тұрған жерге бар.",
+  "target_kk": "қыша бөтелкесі",
+  "gold_en": [
+   "mustard bottle",
+   "mustard"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_where_power-drill",
+  "command_kk": "Бұрғы қайда? Тауып бер.",
+  "target_kk": "бұрғы",
+  "gold_en": [
+   "power drill",
+   "drill"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_need_power-drill",
+  "command_kk": "Маған бұрғы керек, соны тауып бер.",
+  "target_kk": "бұрғы",
+  "gold_en": [
+   "power drill",
+   "drill"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_goto_power-drill",
+  "command_kk": "Бұрғы тұрған жерге бар.",
+  "target_kk": "бұрғы",
+  "gold_en": [
+   "power drill",
+   "drill"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_where_pitcher",
+  "command_kk": "Құмыра қайда? Тауып бер.",
+  "target_kk": "құмыра",
+  "gold_en": [
+   "pitcher",
+   "jug"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_need_pitcher",
+  "command_kk": "Маған құмыра керек, соны тауып бер.",
+  "target_kk": "құмыра",
+  "gold_en": [
+   "pitcher",
+   "jug"
+  ],
+  "category": "universal"
+ },
+ {
+  "id": "kk_goto_pitcher",
+  "command_kk": "Құмыра тұрған жерге бар.",
+  "target_kk": "құмыра",
+  "gold_en": [
+   "pitcher",
+   "jug"
+  ],
+  "category": "universal"
+ }
+]

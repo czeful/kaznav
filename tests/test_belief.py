@@ -115,6 +115,15 @@ class TestCandidateEvidence:
         expected = sigmoid(logit(0.3) + 0.5 * (logit(0.9) - logit(0.3)))
         assert ev.probability() == pytest.approx(expected)
 
+    def test_first_view_full_applies_the_discount_to_repeated_views_only(self):
+        """D-069: one view gives exactly the calibrated q the stop threshold was fitted on; later views are discounted."""
+        ev = CandidateEvidence(0.2, view_discount=0.5, first_view_full=True)
+        assert ev.add(0.35) == pytest.approx(0.35)
+        expected = sigmoid(logit(0.35) + 0.5 * (logit(0.6) - logit(0.2)))
+        assert ev.add(0.6) == pytest.approx(expected)
+        shrunk = CandidateEvidence(0.2, view_discount=0.5)
+        assert shrunk.add(0.35) < 0.35          # the pre-D-069 rule pulls a single view towards the base rate
+
 
 class TestCalibrators:
     def test_platt_recovers_parameters(self):

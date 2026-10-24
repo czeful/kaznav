@@ -4,9 +4,11 @@ name: hm3d_ovon
 split: val_unseen
 role: benchmark
 scenes_dir: ${paths.data_root}/scene_datasets/hm3d
+scene_root: ${paths.data_root}/scene_datasets    # episode scene ids are relative to this (verify on the data)
 scene_dataset_config: ${paths.data_root}/scene_datasets/hm3d/hm3d_annotated_basis.scene_dataset_config.json
 episodes_path: ${paths.data_root}/datasets/ovon/hm3d/val_unseen
 success_distance_m: 0.1
 distance_to: view_points
 max_episode_steps: 500
 lexicon: lexicon/hm3d_ovon.yaml   # to be built from the OVON category list (stage 5)
+commands: commands/hm3d_ovon.yaml # to be written with the lexicon; needs native review

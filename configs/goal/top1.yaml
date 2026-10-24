@@ -1,0 +1,8 @@
+# Single-hypothesis ablation (D-038): the same parse call, but only its highest-weighted hypothesis
+# (weight 1.0) reaches the detector, the value map and the verifier's hypothesis belief.
+defaults:
+  - multi
+  - _self_
+
+name: top1
+max_hypotheses: 1

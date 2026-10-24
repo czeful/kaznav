@@ -18,7 +18,7 @@ capabilities:
   max_context_tokens: null
   cost_per_call_usd: null
 prompts:
-  parse_goal: default/parse_goal/v1
+  parse_goal: default/parse_goal/v2       # since 2026-10-04 (D-043); earlier runs used v1
   verify_candidate: default/verify_candidate/v1
   describe: default/describe/v1
 warmup_calls: 0

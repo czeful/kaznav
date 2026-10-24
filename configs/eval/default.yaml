@@ -18,18 +18,25 @@ stuck:
   abort_after_s: 30.0                # stuck longer than this ends the episode (Termination.STUCK_ABORT)
 latency:
   percentiles: [50, 95]
-episode_budget:                      # OPEN (D-005): fixed before the first measured run
-  max_decision_steps: 500            # point agent: one discrete action per decision (habitat standard)
+episode_budget:                      # D-005 closed: 500 = habitat-lab standard (table (a), point agent); the
+  max_decision_steps: 500            # wheeled robot's tables use 800 (set in paper/matrices/*.yaml, dev oracle study)
   decision_period_s: 0.5             # wheeled robot: simulated time per decision step
 funnel:
   min_goal_pixels: 100               # goal instance "in view" if at least this many pixels of it are visible
   detection_goal_overlap: 0.3        # a detection "hits" the goal if this fraction of its box is goal pixels
   stop_candidate_radius_m: 0.3       # stop candidate counts as the goal if within this of a goal AABB
+  verify_label_box_overlap: 0.3      # a verified crop shows the goal if this fraction of its box is goal pixels (D-042)
+benchmark:                           # dataset episodes on the evaluated embodiment (kznav/run/benchmark.py, D-041)
+  max_goal_center_offset_m: 0.5      # dataset goal position vs the semantic instance's AABB centre; more = wrong id map
+  max_start_snap_m: 0.2              # wheeled robot: dataset start farther than this from its own navmesh -> excluded
+  max_start_height_m: 0.3            # ... or on another level
 view_points:                         # per-embodiment goal view points (D-001)
   success_radius_m: 1.0
   grid_step_m: 0.1
   min_pixels: 100
   max_snap_m: 0.05
-fall:                                # robot fell (scan hole, step down) -> Termination.FELL
+  max_object_height_above_floor_m: 2.0   # goals up to this far above the floor below them (TV on a wall, D-056)
+fall:                                # robot fell (scan hole, step down) -> Termination.FELL; not for embodiments
+                                     # with fall_terminates: false (the standard agent walks stairs, D-061)
   max_tilt_deg: 60.0
   max_drop_m: 0.3                    # reference point this far below its start height

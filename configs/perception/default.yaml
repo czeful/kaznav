@@ -17,3 +17,12 @@ detection:
   min_mask_pixels: 50             # mask pixels with valid depth needed to localise a detection
   merge_radius_m: 0.6             # detections (of any query) closer than this are one candidate
   max_points_per_detection: 400
+  point_filter:                   # candidate points without a real segmenter (D-054); 0 = off
+    floor_margin_m: 0.05          # drop points less than this above the floor (the floor inside a low camera's box)
+    depth_band_m: 0.5             # keep the front layer: depth within this of the nearest 5% (not the wall behind)
+  add_target_name: false          # D-072: the model's short English name (parse v4 target_en) as one more query
+  fusion:                         # target-centric fusion across frames (D-060, after ApexNav); on by default (D-064)
+    enabled: true
+    reliable_confidence: 0.45     # fused confidence a candidate needs to be approached; below it: suspected (dev, D-060)
+    min_visible_points: 20        # stored points in view needed to count a frame without a detection against it
+    occlusion_tolerance_m: 0.3    # a stored point behind an observed surface nearer by more than this is occluded

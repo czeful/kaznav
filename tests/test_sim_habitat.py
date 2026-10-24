@@ -92,3 +92,54 @@ def test_point_agent_discrete_actions(tmp_path):
         assert moved <= 0.25 + 1e-4
     finally:
         env.close()
+
+
+# ---------------------------------------------------------------- kinematic wheeled base (D-053)
+@pytest.fixture(scope="module")
+def kcfg():
+    return compose_config(["embodiment=wheeled_vacuum_kinematic"])
+
+
+def test_kinematic_base_drives_with_the_robot_limits_and_camera(kcfg, tmp_path):
+    env = arena(kcfg, tmp_path)
+    try:
+        assert env.robot is None and env.base is not None and not env.sim.config.sim_cfg.enable_physics
+        obs = env.reset((0.0, 0.0, 0.0), FWD)
+        assert obs.camera_transform[1, 3] == pytest.approx(obs.position[1] + 0.15, abs=1e-3)
+        ticks = env.drive(1.0, 0.0, 30)                      # commanded above the limit
+        speed = (ticks[-1].pose[1] - ticks[-11].pose[1]) / 1.0
+        assert speed == pytest.approx(0.3, rel=0.02)          # max_lin_vel_mps, reached through the accel limit
+        assert ticks[0].pose[1] < 0.3 * 0.1                   # first tick: accelerating, not jumping
+        assert not any(t.collision for t in ticks) and all(t.tilt_deg == 0.0 and not t.cliff for t in ticks)
+        assert ticks[-1].odom_twist[0] == pytest.approx(0.3, rel=0.02)
+    finally:
+        env.close()
+
+
+def test_kinematic_base_slides_on_its_navmesh_and_stops_at_walls(kcfg, tmp_path):
+    env = arena(kcfg, tmp_path, [Box((0.0, 0.3, -0.75), (2.0, 0.3, 0.05), name="wall")])
+    try:
+        env.reset((0.0, 0.0, 0.0), FWD)
+        ticks = env.drive(0.3, 0.0, 60)
+        assert any(t.collision for t in ticks) and ticks[-1].collision
+        assert ticks[-1].pose[1] + 0.17 <= 0.70 + 0.02          # stops at the wall face (navmesh erosion = radius)
+        assert ticks[-1].v_cmd == pytest.approx(0.3, rel=0.02)   # the command stays: the executor sees no progress
+        y = [t.position[1] for t in ticks]
+        assert max(y) - min(y) < 1e-3                             # stays on the floor
+    finally:
+        env.close()
+
+
+def test_kinematic_base_never_leaves_the_navmesh(kcfg, tmp_path):
+    glb = TEST_SCENES / "van-gogh-room.glb"
+    if not glb.exists():
+        pytest.skip("habitat test scenes not downloaded")
+    env = HabitatEnv(kcfg, SceneSpec(str(glb)), tmp_path, seed=0)
+    try:
+        rng = np.random.default_rng(0)
+        env.reset(env.snap(env.random_navigable_point()), FWD)
+        for _ in range(40):
+            for t in env.drive(float(rng.uniform(-0.1, 0.3)), float(rng.uniform(-1.5, 1.5)), 5):
+                assert env.sim.pathfinder.is_navigable(np.asarray(t.position, dtype=np.float32))
+    finally:
+        env.close()

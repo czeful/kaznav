@@ -60,6 +60,16 @@ def test_think_control_inherits_qolda(repo_root):
     assert cfg["max_tokens"]["verify_candidate"] == 4
 
 
+def test_default_perception_is_the_dev_chosen_stack(repo_root):
+    """D-064: the D-060 stack chosen on dev is what a run gets without perception overrides."""
+    cfg = composed(repo_root)
+    det, fusion = cfg["detector"], cfg["perception"]["detection"]["fusion"]
+    assert det["model_id"].startswith("openmmlab-community/mm_grounding_dino_base") and det["box_threshold"] == 0.5
+    assert det["query_mode"] == "separate" and det["input_resize"] == "native" and det["max_box_area_frac"] == 0.8
+    assert cfg["segmenter"]["type"] == "sam2"
+    assert fusion["enabled"] is True and fusion["reliable_confidence"] == 0.45
+
+
 def test_mock_perception_components():
     img = np.zeros((10, 10, 3), dtype=np.uint8)
     assert create_detector({"type": "none"}).detect(img, ["chair"]) == []
@@ -95,7 +105,10 @@ class TestManifestAndLogs:
         cols = column_names()
         assert len(cols) == len(set(cols))
         assert {"success", "spl", "soft_spl", "dts", "outcome", "vlm_calls", "stuck_time_s"} <= set(cols)
-        assert EpisodeResult.__dataclass_fields__["schema_version"].default == 2
+        assert EpisodeResult.__dataclass_fields__["schema_version"].default == 4
+        assert {"goal_mode", "pipeline_lang", "translation", "translation_latency_s"} <= set(cols)   # v3
+        assert {"failure_stage", "stop_box_goal_fraction", "stop_label_source", "goal_ever_verify_rejected",
+                "vlm_call_errors", "localization", "loc_error_final_m"} <= set(cols)                  # v4
 
 
 @pytest.mark.parametrize("embodiment", EMBODIMENTS)
@@ -114,4 +127,65 @@ def test_unknown_noise_model_rejected():
     from kznav.sim.noise import build_noise_models
 
     with pytest.raises(KeyError):
-        build_noise_models({"depth": {"model": "redwood"}}, seed=0)
+        build_noise_models({"depth": {"model": "kinect_v9"}}, seed=0)
+
+
+def test_falls_end_episodes_only_for_embodiments_that_cannot_change_floors():
+    """D-061: the wheeled robot dropping 0.3 m has fallen; habitat-lab's agent walking down stairs has not."""
+    from kznav.run.config import compose_config
+    from kznav.run.episode import fall_limits
+
+    assert fall_limits(compose_config(["embodiment=wheeled_vacuum_kinematic"])) == (60.0, 0.3)
+    assert fall_limits(compose_config(["embodiment=wheeled_vacuum"])) == (60.0, 0.3)
+    assert fall_limits(compose_config(["embodiment=habitat_agent"])) == (math.inf, math.inf)
+
+
+class _PointEnv:
+    """A discrete agent on a line: move_forward advances 0.25 m unless ``wall_x`` is reached (then: collided)."""
+
+    def __init__(self, wall_x=None):
+        self.x, self.yaw, self.wall_x, self.actions = 0.0, 0.0, wall_x, []
+
+    def act(self, action):
+        from kznav.sim.env import Tick
+
+        self.actions.append(action)
+        hit = False
+        if action == "move_forward":
+            nx = self.x + 0.25 * math.cos(self.yaw)
+            if self.wall_x is not None and nx > self.wall_x:
+                hit = True
+            else:
+                self.x = nx
+        elif action == "turn_left":
+            self.yaw += math.radians(30)
+        elif action == "turn_right":
+            self.yaw -= math.radians(30)
+        return Tick(t=0.0, pose=(self.x, 0.0, self.yaw), position=(self.x, 0.0, 0.0), v_cmd=0.0, w_cmd=0.0,
+                    collision=hit)
+
+
+def test_point_executor_reports_blocked_steps_and_tolerates_heading_error():
+    """D-063: a move_forward the navmesh stops is reported (the policy marks a virtual obstacle); with a larger
+    heading tolerance the agent walks a 20-degree path without turning."""
+    from kznav.policy.objectnav import Decision
+    from kznav.run.config import compose_config
+    from kznav.run.episode import Executor
+
+    cfg = compose_config(["embodiment=habitat_agent"])
+    env = _PointEnv(wall_x=0.3)
+    ex = Executor(env, cfg)
+    path = Decision("explore", path_xy=[(0.0, 0.0), (2.0, 0.0)])
+    _, blocked = ex.execute(path, (0.0, 0.0, 0.0))
+    assert blocked is None and env.x == pytest.approx(0.25)
+    _, blocked = ex.execute(path, (0.25, 0.0, 0.0))
+    assert blocked == (0.25, 0.0, 0.0) and env.actions == ["move_forward", "move_forward"]
+    slanted = Decision("explore", path_xy=[(0.0, 0.0), (2.0 * math.cos(math.radians(20)), 2.0 * math.sin(math.radians(20)))])
+    strict_cfg = compose_config(["embodiment=habitat_agent", "policy.point_executor.heading_tolerance_deg=15"])
+    strict = _PointEnv()
+    Executor(strict, strict_cfg).execute(slanted, (0.0, 0.0, 0.0))
+    assert strict.actions == ["turn_left"]                        # 20 deg > a 15 deg tolerance
+    lenient_cfg = compose_config(["embodiment=habitat_agent", "policy.point_executor.heading_tolerance_deg=25"])
+    lenient = _PointEnv()
+    Executor(lenient, lenient_cfg).execute(slanted, (0.0, 0.0, 0.0))
+    assert lenient.actions == ["move_forward"]

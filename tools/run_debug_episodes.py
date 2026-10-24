@@ -1,12 +1,13 @@
 """Run ObjectNav episodes on a DEBUG dataset (test scenes + placed objects with known ids).
 
     bash tools/wsl.sh python tools/run_debug_episodes.py [--videos 2] [--lang kk] [--no-verify] [hydra overrides ...]
-    e.g.  ... detector=grounding_dino_tiny value_encoder=siglip2_base --lang kk      (needs the Qolda server)
+    e.g.  ... detector=mm_grounding_dino_base value_encoder=siglip2_base --lang kk   (needs the Qolda server)
 
 --lang none (default): the detector gets the English category name, no language model.
 --lang kk | kk_ru | en: the command (commands/<dataset>.yaml templates, round-robin, or --command "...") is parsed by the
     configured VLM backend; its hypotheses are the detector queries and value-map weights, and the
     VLM verifies each candidate before the stop (unless --no-verify).
+    goal=top1 | mt_word | mt_command (with --lang): the goal ablations of D-038 / D-039.
 Numbers from this tool are pipeline checks (role: debug), never paper results.
 Output: runs/debug/<UTC timestamp>/{episodes.csv, summary.md, episodes.json, vlm_calls.jsonl, events.jsonl,
         manifest.json, video_*.mp4}
@@ -28,14 +29,14 @@ sys.path.insert(0, str(REPO))
 from kznav.eval.aggregate import summarize  # noqa: E402
 from kznav.eval.records import column_names  # noqa: E402
 from kznav.language.base import ListSink, TeeSink  # noqa: E402
-from kznav.language.goal import GoalCache  # noqa: E402
+from kznav.language.goal import make_goal_cache, with_target_name  # noqa: E402
 from kznav.language.lexicon import Lexicon  # noqa: E402
 from kznav.language.registry import create_backend  # noqa: E402
 from kznav.perception.base import create_detector, create_segmenter, create_value_encoder  # noqa: E402
 from kznav.perception.camera import Intrinsics  # noqa: E402
 from kznav.policy.objectnav import ObjectNavPolicy  # noqa: E402
 from kznav.policy.verification import load_stop_calibration, make_verifier  # noqa: E402
-from kznav.report.video import Mp4Writer, compose, depth_to_rgb, draw_text, render_policy_map, render_value_map  # noqa: E402
+from kznav.report.episode_video import EpisodeVideo as VideoRecorder  # noqa: E402
 from kznav.run.config import compose_config  # noqa: E402
 from kznav.run.episode import Executor, run_episode  # noqa: E402
 from kznav.run.gpu import memory_report  # noqa: E402
@@ -44,59 +45,9 @@ from kznav.run.manifest import build_manifest, write_manifest  # noqa: E402
 from kznav.sim.env import HabitatEnv, SceneSpec  # noqa: E402
 from kznav.sim.episodes import ObjectSpec, compute_view_points, placement_populate, sample_episodes, save_episodes  # noqa: E402
 
-GREEN, RED, AMBER, CYAN = (90, 220, 90), (255, 90, 90), (255, 190, 60), (120, 210, 255)
-
-
-class VideoRecorder:
-    def __init__(self, path: Path, cfg, label: str, language=None):
-        self.w = Mp4Writer(path, fps=4.0)
-        self.max_depth = float(cfg["embodiment"]["sensors"]["rgbd"]["depth"]["max_m"])
-        self.radius = float(cfg["embodiment"]["body"]["radius_m"])
-        self.label = label
-        self.language = language
-
-    def __call__(self, *, obs, decision, policy, trace, step, episode):
-        import cv2
-
-        fr_cells = [f.cell for f in policy.last_frontiers]
-        mp = render_policy_map(policy.map, pose=obs.pose, radius_m=self.radius,
-                               trajectory=[p[:2] for p in trace.poses], path=decision.path_xy,
-                               frontier_cells=fr_cells, candidates=policy.memory.candidates,
-                               gt_boxes=[(g.aabb_min, g.aabb_max) for g in episode.goals])
-        kind_color = {"stop": GREEN, "face": AMBER, "approach": CYAN}.get(decision.kind, (255, 255, 255))
-        text = [f"{self.label} | {episode.episode_id} | step {step}  t={obs.sim_time:.1f}s"]
-        lg = self.language
-        if lg is not None:
-            text.append((f"command ({lg.lang}): «{lg.text}»   ->  target: {lg.target or '-'}", AMBER))
-            w = policy.query_weights or lg.weights
-            text.append("hypotheses: " + "   ".join(f"{h} [{wt:.2f}]" for h, wt in zip(policy.queries, w)))
-        else:
-            text.append(f"goal (English category): {episode.goal_category}")
-        text.append((f"decision: {decision.kind} - {decision.reason}", kind_color))
-        v = policy.last_verify
-        if v is not None:
-            p = "-" if v.p_raw is None else f"{v.p_raw:.2f}"
-            text.append((f"last verification (step {v.step}, cand {v.cid}): P(yes)={p} ({v.answer!r}) -> "
-                         f"P(target)={v.p_candidate:.2f} -> {v.decision}",
-                         GREEN if v.decision == "stop" else RED if v.decision == "reject" else AMBER))
-        text.append(f"detections: {len(policy.last_detections)}  candidates: {len(policy.memory.candidates)} "
-                    f"(rejected {sum(c.rejected for c in policy.memory.candidates)})  frontiers: {len(policy.last_frontiers)}"
-                    "   map: cyan=frontier, green=GT goal (not seen by the robot)")
-        rgb = obs.rgb.copy()
-        for d in policy.last_detections:
-            x1, y1, x2, y2 = (int(v) for v in d.box_xyxy)
-            cv2.rectangle(rgb, (x1, y1), (x2, y2), RED, 2)
-            draw_text(rgb, f"{d.phrase} {d.score:.2f}", (x1 + 2, max(0, y1 - 18)), RED, size=14)
-        panels = [rgb, mp]
-        vm = policy.value_map.normalized() if policy.value_map is not None else None
-        if vm is not None:
-            panels.append(render_value_map(policy.map, vm, obs.pose, self.radius))
-        else:
-            panels.insert(1, depth_to_rgb(obs.depth, self.max_depth))
-        self.w.write(compose(panels, 360, text))
-
-    def close(self):
-        self.w.close()
+# Language of the object name inside the command templates (commands/<dataset>.yaml: kk_ru names it in Russian).
+# Only goal=mt_word uses the name: it gets it the way standard ObjectNav gets the category (D-039).
+from kznav.language.commands import WORD_LANG  # noqa: E402
 
 
 def command_for(templates: dict, lexicon: Lexicon, lang: str, category: str, i: int):
@@ -124,7 +75,12 @@ def main() -> None:
         raise SystemExit("this tool is for debug datasets only")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     venc_name = cfg["value_encoder"]["type"] if cfg["value_encoder"].get("enabled", False) else "novalue"
-    lang_tag = "nolang" if not use_lang else f"{cfg['backend']['name']}-{args.lang}-{'noverify' if args.no_verify else 'verify'}"
+    goal_name = str(cfg["goal"]["name"])
+    if goal_name != "multi" and not use_lang:
+        raise SystemExit(f"goal={goal_name} needs --lang kk | kk_ru | en")
+    goal_tag = "" if goal_name == "multi" else f"-{goal_name}"
+    lang_tag = ("nolang" if not use_lang else
+                f"{cfg['backend']['name']}-{args.lang}{goal_tag}-{'noverify' if args.no_verify else 'verify'}")
     run_id = f"debug_{ds['name']}_{emb['name']}_{cfg['detector']['type']}_{venc_name}_{lang_tag}_{stamp}"
     out = REPO / "runs" / "debug" / stamp
     logger = RunLogger(out)
@@ -142,11 +98,13 @@ def main() -> None:
         backend = create_backend(cfg["backend"], sink=TeeSink(logger.call_sink, calls))
         backend.context.run_id = run_id
         backend.warmup(int(cfg["backend"].get("warmup_calls", 0)))
-        goals = GoalCache(backend, calls, lexicon)
+        goals = make_goal_cache(cfg["goal"], backend, calls, lexicon, translator_sink=logger.call_sink)
         cmd_file = yaml.safe_load((REPO / "commands" / f"{ds['name']}.yaml").read_text(encoding="utf-8"))
         templates = cmd_file["templates"]
         _, thr, base, calibrated = load_stop_calibration(cfg["policy"])
-        extra.update(backend=backend.describe_config(), commands_review_status=cmd_file["review_status"],
+        extra.update(backend=backend.describe_config(), goal=cfg["goal"],
+                     translator=goals.translator.describe_config() if goals.translator is not None else None,
+                     commands_review_status=cmd_file["review_status"],
                      stop_threshold=thr, base_rate=base, calibrated=calibrated,
                      note="" if calibrated else "verifier uncalibrated (identity + debug threshold): debug only")
     only = {x for x in args.only.split(",") if x}
@@ -190,15 +148,22 @@ def main() -> None:
                 lg = None
                 if use_lang:
                     cid, text = ("custom", args.command) if args.command else                         command_for(templates, lexicon, args.lang, ep.goal_category, i_cat)
+                    word_lang = WORD_LANG[args.lang]
+                    names = lexicon.categories[ep.goal_category].names
                     lg = goals.get(command_id=cid, text=text, lang=args.lang, category=ep.goal_category,
-                                   word_type=lexicon.categories[ep.goal_category].word_type)
+                                   word_type=lexicon.categories[ep.goal_category].word_type,
+                                   word=(names.get(word_lang) or [ep.goal_category])[0], word_lang=word_lang)
                     lang_rows.append({"episode_id": ep.episode_id, **lg.summary()})
                     logger.event("goal", episode_id=ep.episode_id, step=-1, **lg.summary())
-                    policy.queries = list(lg.hypotheses)
-                    policy.query_weights = list(lg.weights) if lg.hypotheses else None
+                    texts, weights = list(lg.hypotheses), list(lg.weights)
+                    if cfg["perception"]["detection"].get("add_target_name", False):      # D-072
+                        texts, weights = with_target_name(texts, weights, lg.target_en)
+                    policy.queries = texts
+                    policy.query_weights = weights if texts else None
+                    policy.rooms = list(lg.rooms)
                     backend.context.episode_id = ep.episode_id
                     policy.verifier = None if args.no_verify or not lg.parse_ok else make_verifier(
-                        cfg, backend, lg.target, args.lang, lg.hypotheses, lg.weights)
+                        cfg, backend, lg.target, lg.effective_lang, texts, weights, lg.target_en)
                 else:
                     policy.queries, policy.query_weights, policy.verifier = [ep.goal_category], None, None
                 rec = None

@@ -1,0 +1,45 @@
+# D-075 step 3b (user's decision 2026-10-22, reduced): the SigLIP verifier ("sig", calib/siglip_zero_v1.json) on the
+# fresh dev4 scenes (splits/hm3d_v1_dev4.txt, used nowhere before). Chooses NOTHING. Verifier arms: the new settings of
+# stage 4, parses replayed from the dev_confirm arm of the same language (all 12 kk and 12 en commands recorded).
+name: dev_light4
+title: "DEV: SigLIP verifier on fresh scenes dev4 (D-075, step 3b)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev4.txt
+  - run.video.fraction=0.2
+arms:
+  - {key: vlfm_en, label: "VLFM-style, English label (no VLM)", lang: none, overrides: []}
+  - {key: oracle, label: "Ground-truth detector (navigation ceiling), stop where in view", lang: none,
+     overrides: [detector=oracle_semantic, segmenter=box, perception.detection.fusion.enabled=false,
+                 policy.approach.stop_mode=visible]}
+  - {key: qolda_kk_lv, label: "Qolda kk (parse), SigLIP verifier", lang: kk, accent: true,
+     overrides: [backend=replay, backend.prompts.parse_goal=default/parse_goal/v4, policy.verification.question_lang=en,
+                 policy.verification.commit_approach=true, policy.verification.verify_range_m=1.5,
+                 policy.approach.stop_mode=visible, policy.verification.backend=siglip_zero,
+                 policy.stop.calibration_file=calib/siglip_zero_v1.json,
+                 "backend.replay.sources=[runs/matrix/dev_confirm/qolda_kk/seed0/vlm_calls.jsonl]"]}
+  - {key: qwen_kk_lv, label: "Qwen3-VL-4B kk (parse), SigLIP verifier", lang: kk,
+     overrides: [backend=replay, backend.prompts.parse_goal=default/parse_goal/v4, policy.verification.question_lang=en,
+                 policy.verification.commit_approach=true, policy.verification.verify_range_m=1.5,
+                 policy.approach.stop_mode=visible, policy.verification.backend=siglip_zero,
+                 policy.stop.calibration_file=calib/siglip_zero_v1.json,
+                 "backend.replay.sources=[runs/matrix/dev_confirm/qwen_kk/seed0/vlm_calls.jsonl]"]}
+  - {key: mt_qwen_kk_lv, label: "NLLB kk->en, Qwen3-VL-4B (parse), SigLIP verifier", lang: kk,
+     overrides: [backend=replay, goal=mt_command, backend.prompts.parse_goal=default/parse_goal/v4,
+                 policy.verification.question_lang=en, policy.verification.commit_approach=true,
+                 policy.verification.verify_range_m=1.5, policy.approach.stop_mode=visible,
+                 policy.verification.backend=siglip_zero, policy.stop.calibration_file=calib/siglip_zero_v1.json,
+                 "backend.replay.sources=[runs/matrix/dev_confirm/mt_qwen_kk/seed0/vlm_calls.jsonl]"]}
+  - {key: qwen_en_lv, label: "Qwen3-VL-4B en (parse), SigLIP verifier", lang: en,
+     overrides: [backend=replay, backend.prompts.parse_goal=default/parse_goal/v4, policy.verification.question_lang=en,
+                 policy.verification.commit_approach=true, policy.verification.verify_range_m=1.5,
+                 policy.approach.stop_mode=visible, policy.verification.backend=siglip_zero,
+                 policy.stop.calibration_file=calib/siglip_zero_v1.json,
+                 "backend.replay.sources=[runs/matrix/dev_confirm/qwen_en/seed0/vlm_calls.jsonl]"]}
+contrasts: [[qolda_kk_lv, qwen_kk_lv], [qolda_kk_lv, mt_qwen_kk_lv], [qwen_en_lv, qwen_kk_lv], [qolda_kk_lv, vlfm_en]]
+breakdowns: [goal_category]

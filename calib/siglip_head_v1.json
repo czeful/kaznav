@@ -1,0 +1,25 @@
+{
+  "calibrator": {
+    "kind": "platt",
+    "a": 0.5782881193589289,
+    "b": -1.1061192186791529
+  },
+  "threshold": {
+    "threshold": 0.29748345682174,
+    "objective": "max_f1",
+    "precision": 0.5296184738955824,
+    "recall": 0.6340144230769231,
+    "f1": 0.577133479212254,
+    "n": 7712
+  },
+  "backend": "siglip_head",
+  "model_id": "siglip_head_v1/head.pt",
+  "prompt_sha256": "dec455192e83889466a08260a6e1165461019c7d3465ac7804e3afaaaa6a42ba",
+  "dev_split": "verifier_data held-out scenes",
+  "dev_episode_ids": [],
+  "n_samples": 7712,
+  "base_rate": 0.2157676348547718,
+  "created_utc": "2026-10-21T15:01:59+00:00",
+  "notes": "MLP on SigLIP features; data runs/verifier_data/v1; calibrated on 7712 verifier crops of dev scenes except dev3",
+  "extra": {}
+}

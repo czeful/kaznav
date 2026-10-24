@@ -40,13 +40,17 @@ class TestPromptFiles:
         with pytest.raises(ValueError, match="version"):
             PromptLibrary(tmp_path).load("default/describe/v2")
 
-    def test_parse_prompt_schema_matches_code(self, prompt_lib):
+    @pytest.mark.parametrize("version,without", [("v1", ["target_en"]), ("v2", ["target_en"]), ("v3", []), ("v4", [])])
+    def test_parse_prompt_schema_matches_code(self, prompt_lib, version, without):
         """The JSON Schema pasted into the prompt must describe the pydantic model the code validates.
-        A schema change therefore forces a new prompt version."""
-        system = prompt_lib.load("default/parse_goal/v1").data["system"]
+        A schema change therefore forces a new prompt version. Older versions describe the model without the
+        optional fields added later (target_en, parse_goal v3, D-071)."""
+        system = prompt_lib.load(f"default/parse_goal/{version}").data["system"]
         block = _find_balanced_braces(system[system.index("Схема"):])
         embedded = json.loads(block)
         current = GoalHypotheses.model_json_schema()
+        for name in without:
+            del current["properties"][name]
 
         structural = {"type", "required", "$ref", "items", "minItems", "maxItems", "minimum", "maximum"}
 
@@ -66,8 +70,9 @@ class TestPromptFiles:
 
         assert shape(embedded) == shape(current)
 
-    def test_fewshot_is_valid_and_not_an_evaluated_object(self, prompt_lib, repo_root):
-        tpl = prompt_lib.load("default/parse_goal/v1")
+    @pytest.mark.parametrize("version", ["v1", "v2", "v3", "v4"])
+    def test_fewshot_is_valid_and_not_an_evaluated_object(self, prompt_lib, repo_root, version):
+        tpl = prompt_lib.load(f"default/parse_goal/{version}")
         for ex in tpl.data["fewshot"]:
             GoalHypotheses.model_validate_json(ex["assistant"])
         forms = set()

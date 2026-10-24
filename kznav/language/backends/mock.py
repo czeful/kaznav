@@ -61,7 +61,7 @@ class MockBackend(VLMBackend):
         else:
             en = self.lexicon[hit["category"]].en()[:4] or ["object"]
             weights = [0.5 ** i for i in range(len(en))]
-            payload = {"target": hit["form"],
+            payload = {"target": hit["form"], "target_en": en[0],
                        "hypotheses": [{"en": e, "w": round(w / sum(weights), 4)} for e, w in zip(en, weights)]}
         payload.update(attributes={"material": [], "color": [], "size": []}, rooms=[], landmarks=[])
         return json.dumps(payload, ensure_ascii=False)

@@ -45,7 +45,7 @@ drive:
     max_ang_acc_radps2: 3.0
 
 physics:
-  mode: articulated           # URDF + wheel motors in Bullet; validated on scans (D-003); the only mode implemented
+  mode: articulated           # URDF + wheel motors in Bullet (D-003) | kinematic: on the navmesh (wheeled_vacuum_kinematic.yaml, D-053)
   physics_dt_s: 0.004166667   # 240 Hz
   control_dt_s: 0.1           # velocity commands at 10 Hz
   scene_friction: 1.0         # Bullet multiplies coefficients: effective wheel mu = wheel_friction * scene_friction
@@ -55,6 +55,8 @@ physics:
   contacts:
     min_normal_force_n: 0.05  # ignore speculative (zero-force) contact points
     support_normal_min_y: 0.7 # wheel/caster contact with normal within ~45 deg of vertical = support, not collision
+
+drops_are_obstacles: true     # map: points below the floor are obstacles - a robot vacuum must not drive into stairs down (cliff sensors, D-026)
 
 navmesh:
   source: recompute           # the standard navmesh is built for the 0.88 m agent (D-001)
@@ -72,7 +74,7 @@ sensors:
     mount:
       height_m: 0.15
       forward_m: 0.14         # behind the front edge of the chassis (radius 0.17)
-      pitch_deg: 0.0          # OPEN (D-004): fixed from a goal-visibility check on dev scenes
+      pitch_deg: 20.0         # up; chosen on dev (D-004): oracle SR 77.6% vs 65.8% at 0 deg, 36.8% at 30 deg
     depth:
       min_m: 0.2
       max_m: 5.0
@@ -84,12 +86,13 @@ sensors:
     drop_m: 0.04                     # no floor within 4 cm below -> cliff (deeper than the 2 cm wheel drop)
   odometry:
     enabled: true             # wheel odometry from joint velocities (the policy uses GT pose by default)
+    source: wheel_encoders    # with localization: odometry - wheel_encoders | true_increment (D-051)
   imu:
     enabled: false
 
-localization: ground_truth    # standard ObjectNav GPS+compass; odometry is for the robustness study
+localization: ground_truth    # standard ObjectNav GPS+compass | odometry: dead reckoning from the start (D-051)
 
-noise:                        # all off for baseline runs; interfaces exist for the robustness study
-  depth: {model: none}        # none | redwood
-  actuation: {model: none}    # none | locobot
-  odometry_drift: {model: none}
+noise:                        # all off for baseline runs; the robustness study turns them on (kznav/sim/noise.py)
+  depth: {model: none}        # none | redwood (noise_multiplier: 1.0) | gaussian (rel_std, dropout)
+  actuation: {model: none}    # none | gaussian_twist (v_rel_std, w_rel_std, w_bias_std, hold_s)
+  odometry_drift: {model: none}   # none | gaussian_increment (trans_rel_std, lat_std_per_m, rot_rel_std, yaw_deg_per_m_std)

@@ -1,0 +1,19 @@
+# Command templates for the 6 HM3D ObjectNav v1 categories. {kk} / {ru} / {en} = the category's first name in that
+# language from lexicon/hm3d_objectnav.yaml. The object stays in the nominative case in every template, so no case
+# suffixes (vowel harmony) have to be generated. The same templates as commands/debug_ycb.yaml; an episode's template
+# is chosen from its id (kznav.sim.objectnav_dataset.stable_index), so it does not depend on the subset.
+# DRAFT, written by the developer: needs native-speaker review before any reported run.
+review_status: draft_needs_native_review
+lexicon: lexicon/hm3d_objectnav.yaml
+templates:
+  kk:
+    - {id: kk_where, text: "{kk} қайда? Тауып бер."}              # Where is X? Find it.
+    - {id: kk_need, text: "Маған {kk} керек, соны тауып бер."}    # I need X, find it.
+    - {id: kk_goto, text: "{kk} тұрған жерге бар."}                # Go to where X is.
+  kk_ru:
+    - {id: kkru_where, text: "{ru} қайда? Тауып бер."}
+    - {id: kkru_need, text: "Маған {ru} керек, соны тауып бер."}
+  en:                                                               # literal translations of the kk templates
+    - {id: en_where, text: "Where is the {en}? Find it."}
+    - {id: en_need, text: "I need the {en}, find it."}
+    - {id: en_goto, text: "Go to where the {en} is."}

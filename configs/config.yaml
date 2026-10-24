@@ -5,9 +5,10 @@ defaults:
   - dataset: hm3d_objectnav_v1_val
   - backend: mock
   - perception: default
-  - detector: none                # set explicitly per run; oracle_semantic is an ablation
-  - segmenter: box
+  - detector: mm_grounding_dino_base   # the D-060 stack, chosen on dev (D-064); none / oracle_semantic for ablations
+  - segmenter: sam2_tiny               # box: the D-054 box masks (ablation)
   - value_encoder: none
+  - goal: multi                  # what the parsed goal hands to the pipeline; ablations: top1 | mt_word | mt_command
   - policy: default
   - eval: default
   - _self_
@@ -23,6 +24,8 @@ run:
   video:
     enabled: true
     fraction: 0.05        # deterministic subsample of episodes (by seed) that get a video
+  max_episode_attempts: 2       # an episode that raised this often is given up (stays in failures.csv, D-046)
+  max_consecutive_failures: 3   # this many failed episodes in a row abort the run (server or simulator down)
 
 sim:
   # -1: no CUDA/EGL device matching — required under WSL2, where Mesa renders via D3D12 (D-008).

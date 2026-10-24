@@ -1,0 +1,30 @@
+# Re-run of dev_agent_stack after D-063 (the standard agent's collisions reach the policy; executor lookahead 0.25 m,
+# heading tolerance 25 deg - the new defaults). Ground-truth ceiling with these settings: dev_agent_executor/e4 (73.3%).
+name: dev_agent_stack2
+title: "DEV: standard Habitat agent, D-060 stack, after D-063"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=habitat_agent
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_agent.txt
+  - run.video.fraction=0.03
+  - policy.belief.first_view_full=false        # ran before D-069 (D-070 made true the default)
+servers:
+  qwen: {start: bash tools/start_qwen.sh, pid_file: runs/servers/qwen.pid, health: "http://127.0.0.1:23334/v1/models"}
+arms:
+  - {key: vlfm_en, label: "VLFM-style, English label, D-060 stack", lang: none,
+     overrides: [detector=mm_grounding_dino_base, segmenter=sam2_tiny, perception.detection.fusion.enabled=true,
+                 perception.detection.fusion.reliable_confidence=0.45]}
+  - {key: qwen_en, label: "Qwen3-VL-4B, en, D-060 stack (uncalibrated)", lang: en, server: qwen,
+     overrides: [backend=qwen3vl_4b, detector=mm_grounding_dino_base, segmenter=sam2_tiny,
+                 perception.detection.fusion.enabled=true, perception.detection.fusion.reliable_confidence=0.45]}
+  # D-062: VLFM's detector class (closed-set COCO, confidence 0.8; RT-DETR R101 standing in for YOLOv7) + SAM masks
+  - {key: vlfm_closed, label: "VLFM-style, closed-set COCO detector 0.8, SAM, no fusion (as VLFM)", lang: none,
+     overrides: [detector=rtdetr_coco, segmenter=sam2_tiny, perception.detection.fusion.enabled=false]}
+  - {key: vlfm_closed_fusion, label: "VLFM-style, closed-set COCO detector 0.8, SAM, fusion 0.45", lang: none,
+     overrides: [detector=rtdetr_coco, segmenter=sam2_tiny, perception.detection.fusion.enabled=true,
+                 perception.detection.fusion.reliable_confidence=0.45]}
+contrasts: []
+breakdowns: [goal_category]

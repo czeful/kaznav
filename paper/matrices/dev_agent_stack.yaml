@@ -1,0 +1,34 @@
+# Dev check on the STANDARD Habitat agent (camera 0.88 m, 500 steps) with the D-060 stack, against published
+# zero-shot numbers (VLFM 52.5% SR on HM3D v1 val). Same dev episodes as dev_agent_reference (train scenes, not filtered
+# for the wheeled robot). D-061 applies: going down a floor is not a fall. Stack as chosen on the wheeled robot's dev
+# runs: MM-GroundingDINO base 0.50, SAM 2.1 masks, fusion 0.45 (stage 2 may change the fusion value; then re-run).
+name: dev_agent_stack
+title: "DEV: standard Habitat agent with the D-060 stack"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=habitat_agent
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_agent.txt
+  - run.video.fraction=0.03
+  - policy.belief.first_view_full=false        # ran before D-069 (D-070 made true the default)
+servers:
+  qwen: {start: bash tools/start_qwen.sh, pid_file: runs/servers/qwen.pid, health: "http://127.0.0.1:23334/v1/models"}
+arms:
+  - {key: vlfm_en, label: "VLFM-style, English label, D-060 stack", lang: none,
+     overrides: [detector=mm_grounding_dino_base, segmenter=sam2_tiny, perception.detection.fusion.enabled=true,
+                 perception.detection.fusion.reliable_confidence=0.45]}
+  - {key: oracle, label: "ground-truth detector (ceiling)", lang: none,      # box / no fusion: the defaults then (D-064)
+     overrides: [detector=oracle_semantic, segmenter=box, perception.detection.fusion.enabled=false]}
+  - {key: qwen_en, label: "Qwen3-VL-4B, en, D-060 stack (uncalibrated)", lang: en, server: qwen,
+     overrides: [backend=qwen3vl_4b, detector=mm_grounding_dino_base, segmenter=sam2_tiny,
+                 perception.detection.fusion.enabled=true, perception.detection.fusion.reliable_confidence=0.45]}
+  # D-062: VLFM's detector class (closed-set COCO, confidence 0.8; RT-DETR R101 standing in for YOLOv7) + SAM masks
+  - {key: vlfm_closed, label: "VLFM-style, closed-set COCO detector 0.8, SAM, no fusion (as VLFM)", lang: none,
+     overrides: [detector=rtdetr_coco, segmenter=sam2_tiny, perception.detection.fusion.enabled=false]}
+  - {key: vlfm_closed_fusion, label: "VLFM-style, closed-set COCO detector 0.8, SAM, fusion 0.45", lang: none,
+     overrides: [detector=rtdetr_coco, segmenter=sam2_tiny, perception.detection.fusion.enabled=true,
+                 perception.detection.fusion.reliable_confidence=0.45]}
+contrasts: []
+breakdowns: [goal_category]

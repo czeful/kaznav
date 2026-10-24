@@ -109,9 +109,13 @@ class RunLogger:
         self.calls = JsonlWriter(self.run_dir / "vlm_calls.jsonl", fsync)
         self.events = JsonlWriter(self.run_dir / "events.jsonl", fsync)
         self.call_sink = JsonlCallSink(self.calls, self.images)
+        #: Set by the benchmark runner per episode attempt; events of an attempt that failed or was interrupted
+        #: are told apart from the completed one (``episode_done`` events name the completed attempts).
+        self.attempt: Optional[str] = None
 
     def event(self, event_type: str, *, episode_id: str, step: int, **payload: Any) -> None:
-        self.events.write({"type": event_type, "episode_id": episode_id, "step": step, **payload})
+        extra = {"attempt": self.attempt} if self.attempt is not None else {}
+        self.events.write({"type": event_type, "episode_id": episode_id, "step": step, **extra, **payload})
 
     def close(self) -> None:
         self.calls.close()
@@ -125,3 +129,13 @@ def read_jsonl(path: Path, type_filter: Optional[str] = None):
                 obj = json.loads(line)
                 if type_filter is None or obj.get("type") == type_filter:
                     yield obj
+
+
+def completed_events(path: Path, type_filter: Optional[str] = None):
+    """Events of completed episode attempts only (D-046): an event with an ``attempt`` id is kept if an
+    ``episode_done`` event names that attempt; events without one (debug runs, older runs) are all kept."""
+    events = list(read_jsonl(path))
+    done = {e["attempt"] for e in events if e.get("type") == "episode_done" and e.get("attempt")}
+    for e in events:
+        if (type_filter is None or e.get("type") == type_filter) and (e.get("attempt") is None or e["attempt"] in done):
+            yield e

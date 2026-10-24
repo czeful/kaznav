@@ -5,6 +5,8 @@ belief:
   evidence_power: 1.0
   weight_floor: 0.01
   view_discount: 0.5
+  first_view_full: true              # D-069/D-070: the first verifier answer counts in full (the stop
+                                     # threshold's own quantity); view_discount only for repeated views
 
 stop:
   # Fitted on dev ONLY (kznav.policy.calibration). Required for reported runs;
@@ -21,6 +23,22 @@ verification:                        # verify-before-stop (kznav/policy/verifica
   crop_padding: 0.25                 # context around the box, per side, as a fraction of the box size
   min_box_side_px: 0                 # >0: no call on a smaller box (shorter side), approach first; OFF: not supported by data (D-032)
   min_crop_px: 48
+  approach_suspected: false          # D-065: true = with a verifier, suspected (fused conf below the bar) candidates are
+                                     # approached too, not only after exploration is exhausted; dev choice in D-065
+  commit_approach: false             # D-070: true = the candidate the robot drives to stays its target until the
+                                     # verifier decides (a missed frame no longer makes it leave); dev choice in D-070
+  verify_range_m: 0.0                # D-070: >0 = ask already from this far when the whole box is in the frame; a
+                                     # "yes" confirms the candidate (stop in range without a new call); 0 = off
+  whole_box_margin_px: 4             # "whole box": at least this far from every image border
+  question_lang: command             # command: ask in the command's language about its target word | en (D-071):
+                                     # ask in English about the model's own English name of the target (parse v3)
+  second_look_deg: 0.0               # D-071: >0 = an undecided answer is asked again from at least this many
+                                     # degrees around the object (the robot drives there); 0 = off
+  second_look_max_steps: 40          # steps allowed for driving to the second view; then the candidate is rejected
+  backend: vlm                       # D-075: vlm (the language model) | siglip_head | siglip_zero (local, no VLM)
+  head_file: null                    # siglip_head: models/verifier/<name>/head.pt (tools/train_verifier_head.py)
+  recheck_suspected_crops: false     # D-072: before driving to suspected candidates (exploration exhausted), ask about
+                                     # the stored crop of each; a confident "no" drops it
 
 controller:                          # pure pursuit for the wheeled robot (kznav/policy/controller.py)
   lookahead_m: 0.2                   # 0.3 m cut corners into obstacles on scans (D-018)
@@ -51,6 +69,13 @@ approach:
   approach_radius_m: 0.5             # plan to free cells within this of the candidate's points
   close_radius_m: 0.3                # ... or within this, when the verifier wants a closer view
   max_unseen_in_range_steps: 8       # in stop range but not detected: turn to it this many steps, then give it up
+  stop_mode: distance                # distance: stop range = stop_distance_m | visible (D-070): within
+                                     # visible_stop_max_m AND the object's points in the camera's vertical view
+  visible_stop_max_m: 0.9            # visible mode: outer radius of the stop range (success needs <= 1 m and a view)
+  visible_close_m: 0.6               # visible mode: radius when the verifier wants a closer view
+  visible_margin_deg: 1.0            # visible mode: points this far inside the vertical field of view count as seen
+  visible_min_fraction: 0.3          # visible mode: share of the object's points in view (success needs a view)
+  visible_target_slack_m: 0.15       # visible mode: approach cells this much inside the stop range (arrival tolerance)
 
 recovery:                            # wheeled robot: blocked by something the map does not show (low ledge, wedge)
   no_progress_decisions: 2           # consecutive decision periods with forward command but ...
@@ -62,8 +87,14 @@ recovery:                            # wheeled robot: blocked by something the m
   max_repeats_same_spot: 3           # further blockages within same_spot_radius_m: no more back-offs
   same_spot_radius_m: 0.15
 
+point_executor:                      # habitat-lab's discrete agent (D-063); the wheeled robot uses ``controller``
+  mark_collisions: true              # a blocked move_forward marks a virtual obstacle ahead (recovery radius)
+  lookahead_m: 0.25                  # steer at the first path point at least this far ahead
+  heading_tolerance_deg: 25.0        # turn only when the heading error exceeds this (turns are 30 deg); dev, D-063
+
 frontier_selection:                  # used only when a value encoder is configured (else: nearest frontier)
   mode: value                        # value (VLFM-style) | nearest
   value_radius_m: 0.5                # frontier value = max of the value map within this radius
   distance_weight_per_m: 0.002       # score = value - w * path cost (value differences are ~0.01-0.05)
   hysteresis: 0.005                  # keep the previous target unless another frontier beats it by this much
+  room_weight: 0.0                   # D-072: value = (1 - w) * hypotheses + w * the parse's rooms (SigLIP); 0 = off

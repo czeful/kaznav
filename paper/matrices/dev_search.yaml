@@ -1,0 +1,29 @@
+# D-072 stage 3 (search): e = c2 (Qolda kk, parse v4, English short-name question, last metre, max-F1 threshold) +
+# the model's short English name as one more detector query + the parse's rooms in the value map (weight 0.25) +
+# stored crops of suspected candidates asked about before driving to them. Rule (docs/decisions.md D-072): all three
+# adopted if e has at least 3 more successes than c2 (dev_english_v4) on the same 85 dev_tune85 episodes.
+name: dev_search
+title: "DEV: search - short name query, room prior, stored-crop recheck (D-072, stage 3)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_tune85.txt
+  - run.video.fraction=0.05
+  - backend=qolda
+  - backend.prompts.parse_goal=default/parse_goal/v4
+  - policy.verification.question_lang=en
+  - policy.stop.calibration_file=calib/qolda_dev18_en.json
+  - policy.verification.commit_approach=true
+  - policy.verification.verify_range_m=1.5
+  - policy.approach.stop_mode=visible
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+arms:
+  - {key: e_qolda_kk, label: "Qolda kk, c2 + name query + room prior + stored-crop recheck", lang: kk, server: qolda,
+     accent: true, overrides: [perception.detection.add_target_name=true, policy.frontier_selection.room_weight=0.25,
+                               policy.verification.recheck_suspected_crops=true]}
+breakdowns: [goal_category]

@@ -23,6 +23,20 @@ import numpy as np
 from .frames import habitat_to_map
 
 
+@dataclass(frozen=True)
+class SemanticObject:
+    """One instance of the scene's semantic annotation (``env.semantic_objects()``), habitat world frame."""
+    semantic_id: int                 # the value the semantic sensor renders for it
+    object_id: str                   # the annotation's own id string
+    category: str
+    aabb_min: List[float]
+    aabb_max: List[float]
+
+    @property
+    def center(self) -> List[float]:
+        return [(a + b) / 2 for a, b in zip(self.aabb_min, self.aabb_max)]
+
+
 @dataclass
 class GoalInstance:
     object_id: str
@@ -77,10 +91,16 @@ def footprint_distance(p: Sequence[float], aabb_min: Sequence[float], aabb_max: 
 
 
 def compute_view_points(env: Any, goal: GoalInstance, *, success_radius_m: float, grid_step_m: float,
-                        min_pixels: int, max_snap_m: float, success_distance_m: float = 0.1) -> List[List[float]]:
+                        min_pixels: int, max_snap_m: float, success_distance_m: float = 0.1,
+                        max_height_above_floor_m: float = 2.0) -> List[List[float]]:
     """View points on a grid. The grid step must not exceed success_distance * sqrt(2): otherwise a valid
     stopping pose can be farther than the success distance from every grid node, and success would
-    depend on the grid instead of on the robot."""
+    depend on the grid instead of on the robot.
+
+    A grid node counts if its navmesh point lies on the floor under the object: at most
+    ``max_height_above_floor_m`` below the object's bottom (a television on the wall, a plant on a shelf) and at
+    most 0.5 m above it. Until D-056 the object's bottom itself was taken as the floor (+-0.5 m), so every
+    wall-mounted or shelved goal got no view point and its episodes were wrongly excluded."""
     if grid_step_m > success_distance_m * math.sqrt(2) + 1e-12:
         raise ValueError(f"view-point grid step {grid_step_m} m exceeds success_distance*sqrt(2) = "
                          f"{success_distance_m * math.sqrt(2):.3f} m")
@@ -99,7 +119,7 @@ def compute_view_points(env: Any, goal: GoalInstance, *, success_radius_m: float
             snapped = env.snap(cand)
             if not np.all(np.isfinite(snapped)) or math.hypot(*(snapped[[0, 2]] - cand[[0, 2]])) > max_snap_m:
                 continue
-            if abs(snapped[1] - floor_guess) > 0.5:      # another floor
+            if not floor_guess - max_height_above_floor_m <= snapped[1] <= floor_guess + 0.5:     # another floor
                 continue
             here = np.asarray(habitat_to_map(snapped))
             yaw = math.atan2(*(centre_xy - here)[::-1])

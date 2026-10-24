@@ -1,0 +1,58 @@
+# Robustness study (docs/analysis_plan.md §11, D-051, D-053): the method arm under real-robot conditions, on the
+# nested 300-episode subset. Base: the kinematic robot of the main table; `physics` swaps in the articulated
+# (Bullet) robot on the same episodes. Exploratory - not part of the Holm family. Noise parameters are fixed here before the runs;
+# depth = Redwood (habitat-sim's standard model, multiplier 1); actuation = 5% twist error held 0.5 s;
+# odometry = wheel encoders + 2% of distance, 1 deg/m heading drift (kznav/sim/noise.py).
+name: hm3d_v1_robustness
+title: "HM3D ObjectNav v1 val, wheeled robot, sensing and localization noise"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_val
+  - dataset.commands=commands/natural/hm3d_objectnav_v1.yaml
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800   # D-005: smallest limit with >= 99% of the oracle dev SR at 1000
+  - value_encoder=siglip2_base
+  - backend=qolda
+  - policy.stop.calibration_file=calib/qolda_dev.json
+  - run.episodes.subset_file=splits/hm3d_v1_test_secondary.txt
+  - run.video.fraction=0.02
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+arms:
+  - {key: clean, label: "Qolda, kk, ground-truth pose, no noise", lang: kk, server: qolda, accent: true, overrides: []}
+  - key: physics
+    label: "articulated robot in Bullet (contacts, slip, steps)"
+    lang: kk
+    server: qolda
+    overrides: [embodiment=wheeled_vacuum]
+  - key: depth
+    label: "+ Redwood depth noise"
+    lang: kk
+    server: qolda
+    overrides: [embodiment.noise.depth.model=redwood, +embodiment.noise.depth.noise_multiplier=1.0]
+  - key: actuation
+    label: "+ actuation noise"
+    lang: kk
+    server: qolda
+    overrides: [embodiment.noise.actuation.model=gaussian_twist, +embodiment.noise.actuation.v_rel_std=0.05, +embodiment.noise.actuation.w_rel_std=0.05,
+                +embodiment.noise.actuation.w_bias_std=0.01, +embodiment.noise.actuation.hold_s=0.5]
+  - key: odometry
+    label: "wheel odometry instead of ground-truth pose"
+    lang: kk
+    server: qolda
+    overrides: [embodiment.localization=odometry, embodiment.noise.odometry_drift.model=gaussian_increment,
+                +embodiment.noise.odometry_drift.trans_rel_std=0.02, +embodiment.noise.odometry_drift.lat_std_per_m=0.01,
+                +embodiment.noise.odometry_drift.rot_rel_std=0.02, +embodiment.noise.odometry_drift.yaw_deg_per_m_std=1.0]
+  - key: all
+    label: "all of the above"
+    lang: kk
+    server: qolda
+    overrides: [embodiment.noise.depth.model=redwood, +embodiment.noise.depth.noise_multiplier=1.0,
+                embodiment.noise.actuation.model=gaussian_twist, +embodiment.noise.actuation.v_rel_std=0.05, +embodiment.noise.actuation.w_rel_std=0.05,
+                +embodiment.noise.actuation.w_bias_std=0.01, +embodiment.noise.actuation.hold_s=0.5,
+                embodiment.localization=odometry, embodiment.noise.odometry_drift.model=gaussian_increment,
+                +embodiment.noise.odometry_drift.trans_rel_std=0.02, +embodiment.noise.odometry_drift.lat_std_per_m=0.01,
+                +embodiment.noise.odometry_drift.rot_rel_std=0.02, +embodiment.noise.odometry_drift.yaw_deg_per_m_std=1.0]
+contrasts: [[clean, physics], [clean, depth], [clean, actuation], [clean, odometry], [clean, all]]
+breakdowns: [goal_category]

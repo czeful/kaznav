@@ -1,0 +1,28 @@
+# D-065 step 2: should verifier arms approach suspected candidates? The goal candidate's fused confidence halves on
+# one missed frame (0.51 -> 0.26) and the robot leaves it (D-065 step 1). Qolda kk, CALIBRATED verifier
+# (calib/qolda_dev.json), on the 85 runnable dev-pool episodes outside the calibration episodes. Rule fixed before
+# the runs (docs/decisions.md D-065): approach_suspected=true is adopted for every verifier arm if it has at least
+# 3 more successes than false; otherwise nothing changes. Base arm a0 also gives the first calibrated numbers.
+name: dev_fix
+title: "DEV: verifier arms approach suspected candidates (D-065)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_tune85.txt
+  - run.video.fraction=0.05
+  - backend=qolda
+  - policy.stop.calibration_file=calib/qolda_dev.json
+  - policy.belief.first_view_full=false        # ran before D-069 (D-070 made true the default)
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+arms:
+  - {key: a0_qolda_kk, label: "Qolda kk, calibrated, as now", lang: kk, server: qolda,
+     overrides: [policy.verification.approach_suspected=false]}
+  - {key: a1_qolda_kk, label: "Qolda kk, calibrated, approach suspected candidates", lang: kk, server: qolda,
+     overrides: [policy.verification.approach_suspected=true]}
+contrasts: [[a1_qolda_kk, a0_qolda_kk]]
+breakdowns: [goal_category]

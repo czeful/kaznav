@@ -1,0 +1,27 @@
+# D-071 step 1b: the English verification question with the model's own short English name of the target (parse_goal
+# v4, target_en), with the adopted last metre, against a2 of dev_last_metre (same stack, command-language question,
+# 34 successes). Qolda kk, calib/qolda_dev18_en.json (fitted on English questions with short names), 85 dev_tune85
+# episodes. Rule (docs/decisions.md D-071): c2 >= 32 -> the English short-name question is the main one; <= 31 -> back
+# to the user and the supervisor.
+name: dev_english_v4
+title: "DEV: English verification question with the model's short English name (D-071, step 1b)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_tune85.txt
+  - run.video.fraction=0.05
+  - backend=qolda
+  - backend.prompts.parse_goal=default/parse_goal/v4
+  - policy.verification.question_lang=en
+  - policy.stop.calibration_file=calib/qolda_dev18_en.json
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+arms:
+  - {key: c2_qolda_kk, label: "Qolda kk, English short-name question + last metre", lang: kk, server: qolda, accent: true,
+     overrides: [policy.verification.commit_approach=true, policy.verification.verify_range_m=1.5,
+                 policy.approach.stop_mode=visible]}
+breakdowns: [goal_category]

@@ -1,0 +1,31 @@
+# D-077: spoken commands. Qolda-AVL hears the command (synthetic pilot speaker tts_mms) or reads it (the model
+# control); the parses were made before the runs (tools/parse_speech_commands.py, thinking=skip) and are replayed
+# here. Everything else as the SigLIP-verifier arms of stage 3 - paired with dev_light (dev3: qolda_kk_lv, qwen_kk_lv, mt_qwen_kk_lv) - so a
+# speech arm differs from "Qolda text" / "Qwen text" only in the parse. Dev3/dev4 episodes, descriptive; chooses NOTHING.
+name: dev_speech3
+title: "DEV: spoken commands, Qolda-AVL (D-077), dev3"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev3.txt
+  - run.video.fraction=0.2
+  - backend=replay
+  - policy.verification.question_lang=en
+  - policy.verification.commit_approach=true
+  - policy.verification.verify_range_m=1.5
+  - policy.approach.stop_mode=visible
+  - policy.verification.backend=siglip_zero
+  - policy.stop.calibration_file=calib/siglip_zero_v1.json
+arms:
+  - {key: avl_kk_speech, label: "Qolda-AVL hears kk (synthetic voice), SigLIP verifier", lang: kk, accent: true,
+     overrides: [backend.prompts.parse_goal=speech/parse_goal/v1,
+                 "backend.replay.sources=[runs/speech/tts_mms_skip/vlm_calls.jsonl]"]}
+  - {key: avl_kk_text, label: "Qolda-AVL reads kk, SigLIP verifier", lang: kk,
+     overrides: [backend.prompts.parse_goal=default/parse_goal/v4,
+                 "backend.replay.sources=[runs/speech/avl_text_skip/vlm_calls.jsonl]"]}
+contrasts: [[avl_kk_speech, avl_kk_text]]
+breakdowns: [goal_category]

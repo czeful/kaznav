@@ -1,0 +1,6 @@
+# SAM 2.1 (Hiera-T) box-prompted masks (D-060): the object's contour inside each detector box, as VLFM / ApexNav do
+# with Mobile-SAM. One image encoding per frame; masks are clipped to the box; an empty mask falls back to the box.
+type: sam2
+model_id: facebook/sam2.1-hiera-tiny
+device: cuda
+min_pixels: 20

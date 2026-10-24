@@ -1,0 +1,29 @@
+# Dev runs for the verifier calibration (D-042) and the seconds-per-episode estimate (D-049): the method arms with an
+# UNCALIBRATED verifier (identity calibrator, debug threshold) on the dev split (train scenes), the 12 native dev
+# commands (commands/natural/hm3d_objectnav_v1.yaml, split dev), all three languages. tools/fit_calibration.py then fits
+# one artifact per model from these runs: calib/qolda_dev.json, calib/qwen3vl_4b_dev.json. Perception: the D-060 stack
+# (config default since D-064).
+name: dev_calibration
+title: "DEV: verifier calibration runs"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev.txt
+  - run.video.fraction=0.05
+  - policy.belief.first_view_full=false        # ran before D-069 (D-070 made true the default)
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+  qwen: {start: bash tools/start_qwen.sh, pid_file: runs/servers/qwen.pid, health: "http://127.0.0.1:23334/v1/models"}
+arms:
+  - {key: qolda_kk, label: "Qolda, kk (uncalibrated)", lang: kk, server: qolda, overrides: [backend=qolda]}
+  - {key: qolda_en, label: "Qolda, en (uncalibrated)", lang: en, server: qolda, overrides: [backend=qolda]}
+  - {key: qolda_kkru, label: "Qolda, kk-ru (uncalibrated)", lang: kk_ru, server: qolda, overrides: [backend=qolda]}
+  - {key: qwen_kk, label: "Qwen3-VL-4B, kk (uncalibrated)", lang: kk, server: qwen, overrides: [backend=qwen3vl_4b]}
+  - {key: qwen_en, label: "Qwen3-VL-4B, en (uncalibrated)", lang: en, server: qwen, overrides: [backend=qwen3vl_4b]}
+  - {key: qwen_kkru, label: "Qwen3-VL-4B, kk-ru (uncalibrated)", lang: kk_ru, server: qwen, overrides: [backend=qwen3vl_4b]}
+contrasts: []
+breakdowns: [goal_category]

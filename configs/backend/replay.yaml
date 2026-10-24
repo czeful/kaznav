@@ -11,7 +11,7 @@ capabilities:
   max_context_tokens: null
   cost_per_call_usd: null
 prompts:                           # must equal the recorded run's prompts, or lookups miss (by design)
-  parse_goal: default/parse_goal/v1
+  parse_goal: default/parse_goal/v2       # runs before 2026-10-04: backend.prompts.parse_goal=default/parse_goal/v1 (D-043)
   verify_candidate: default/verify_candidate/v1
   describe: default/describe/v1
 warmup_calls: 0

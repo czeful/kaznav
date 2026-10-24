@@ -1,0 +1,55 @@
+# Cultural objects and their matched universal controls (H2; docs/cultural_data_collection.md): each cultural
+# category has a `pair` - a universal object of the same function and similar shape, photographed / inserted the same
+# way, so that the cultural-vs-universal comparison differs only in the word.
+# en: phrases that count as naming the category in an English hypothesis; kk / ru: accepted dictionary forms.
+# DRAFT by the developer (cultural en/kk forms from lexicon/pilot_objects.yaml): native-speaker review needed.
+review_status: draft_needs_native_review
+categories:
+  - {name: қазан, word_type: cultural, pair: cooking_pot,
+     names: {en: [cast-iron cauldron, cauldron, cooking cauldron, kazan], kk: [қазан], ru: [казан]}}
+  - {name: cooking_pot, word_type: universal, pair: қазан,
+     names: {en: [cooking pot, pot, saucepan, stockpot], kk: [кастрөл, кәстрөл], ru: [кастрюля]}}
+  - {name: сандық, word_type: cultural, pair: chest_of_drawers,
+     names: {en: [wooden chest, chest, trunk, storage chest], kk: [сандық], ru: [сундук]}}
+  - {name: chest_of_drawers, word_type: universal, pair: сандық,
+     names: {en: [chest of drawers, dresser, drawer cabinet], kk: [комод], ru: [комод]}}
+  - {name: кебеже, word_type: cultural, pair: cabinet,
+     names: {en: [wooden pantry chest, pantry chest, food storage chest, kebezhe], kk: [кебеже], ru: [кебеже]}}
+  - {name: cabinet, word_type: universal, pair: кебеже,
+     names: {en: [cabinet, cupboard, kitchen cabinet], kk: [шкаф], ru: [шкаф, шкафчик]}}
+  - {name: домбыра, word_type: cultural, pair: guitar,
+     names: {en: [dombra, dombyra, two-string lute, lute], kk: [домбыра], ru: [домбра]}}
+  - {name: guitar, word_type: universal, pair: домбыра,
+     names: {en: [guitar, acoustic guitar], kk: [гитара], ru: [гитара]}}
+  - {name: сырмақ, word_type: cultural, pair: rug,
+     names: {en: [patterned felt rug, felt rug, felt carpet, syrmak, tekemet], kk: [сырмақ, текемет], ru: [сырмак, текемет]}}
+  - {name: rug, word_type: universal, pair: сырмақ,
+     names: {en: [rug, carpet], kk: [кілем], ru: [ковёр, ковер]}}
+  - {name: түскиіз, word_type: cultural, pair: wall_hanging,
+     names: {en: [embroidered wall tapestry, wall tapestry, tapestry, tuskiiz], kk: [түскиіз], ru: [тускииз]}}
+  - {name: wall_hanging, word_type: universal, pair: түскиіз,
+     names: {en: [wall hanging, painting, picture, framed picture], kk: [сурет, картина], ru: [картина]}}
+  - {name: көрпе, word_type: cultural, pair: blanket,
+     names: {en: [quilted padded blanket, quilt, padded blanket, korpe], kk: [көрпе], ru: [корпе, курпе]}}
+  - {name: blanket, word_type: universal, pair: көрпе,
+     names: {en: [blanket, throw], kk: [одеял], ru: [одеяло, плед]}}
+  - {name: самауырын, word_type: cultural, pair: kettle,
+     names: {en: [samovar, tea urn], kk: [самауырын], ru: [самовар]}}
+  - {name: kettle, word_type: universal, pair: самауырын,
+     names: {en: [kettle, electric kettle, teapot], kk: [шәйнек], ru: [чайник]}}
+  - {name: кесе, word_type: cultural, pair: cup,
+     names: {en: [handleless tea bowl, tea bowl, kese, bowl], kk: [кесе], ru: [пиала, кесе]}}
+  - {name: cup, word_type: universal, pair: кесе,
+     names: {en: [cup, mug, teacup], kk: [шыны аяқ, кружка], ru: [чашка, кружка]}}
+  - {name: бесік, word_type: cultural, pair: crib,
+     names: {en: [wooden baby cradle, cradle, besik], kk: [бесік], ru: [бесик, колыбель]}}
+  - {name: crib, word_type: universal, pair: бесік,
+     names: {en: [crib, baby crib, baby cot, cot], kk: [балалар төсегі], ru: [детская кроватка, кроватка]}}
+  - {name: дастархан, word_type: cultural, pair: dining_table,
+     names: {en: [low dining table, dastarkhan, festive table], kk: [дастархан], ru: [дастархан]}}
+  - {name: dining_table, word_type: universal, pair: дастархан,
+     names: {en: [dining table, kitchen table, table], kk: [үстел], ru: [обеденный стол, стол]}}
+  - {name: торсық, word_type: cultural, pair: flask,
+     names: {en: [leather flask, flask for kumis, torsyk], kk: [торсық], ru: [торсык]}}
+  - {name: flask, word_type: universal, pair: торсық,
+     names: {en: [flask, water bottle, canteen], kk: [фляга, бөтелке], ru: [фляга, бутылка]}}

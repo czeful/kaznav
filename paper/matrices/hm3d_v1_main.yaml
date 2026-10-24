@@ -1,0 +1,132 @@
+# Main experiment (docs/analysis_plan.md §3): table (b), the wheeled robot (kinematic on its navmesh, D-053) on HM3D
+# ObjectNav v1 val, camera pitch 20 deg (D-004).
+# DRAFT until the plan is frozen. Done: the splits (from the episodes the robot can run at pitch 20, D-056):
+#   splits/hm3d_v1_test_primary.txt   547 episodes (100 per category, all 47 plant)   make_split.py test --per-category 100
+#   splits/hm3d_v1_test_secondary.txt 297 episodes, nested                            make_split.py test --per-category 50
+#   both with --runnable runs/hm3d_check/val_kinematic_p20/episodes.csv --embodiment wheeled_vacuum_kinematic
+# Still before the first run:
+#   * commands:    commands/natural/hm3d_objectnav_v1.yaml with approved test commands (tools/commands.py validate)
+#   * calibration: calib/qolda_dev.json, calib/qwen3vl_4b_dev.json from dev runs (tools/fit_calibration.py)
+#   * perception: the D-060 stack, now the config default (D-064): MM-GroundingDINO base 0.50, SAM 2.1 masks,
+#     fusion 0.45; D-005 budget closed on dev
+#     bash tools/wsl.sh python tools/run_matrix.py plan paper/matrices/hm3d_v1_main.yaml
+name: hm3d_v1_main
+title: "HM3D ObjectNav v1 val, wheeled robot (table b)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_val
+  - dataset.commands=commands/natural/hm3d_objectnav_v1.yaml
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800   # D-005: smallest limit with >= 99% of the oracle dev SR at 1000
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_test_primary.txt
+  - run.video.fraction=0.02
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+  qwen: {start: bash tools/start_qwen.sh, pid_file: runs/servers/qwen.pid, health: "http://127.0.0.1:23334/v1/models"}
+arms:
+  # ---- primary arms (547 episodes); D-066: kk_ru and the translate-first arm with Qwen are primary
+  - {key: vlfm_en, label: "VLFM-style, English label (no VLM)", lang: none, overrides: []}
+  - key: qolda_kk
+    label: "Qolda, kk"
+    lang: kk
+    server: qolda
+    accent: true
+    overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json]
+  - key: qolda_kkru
+    label: "Qolda, kk-ru"
+    lang: kk_ru
+    server: qolda
+    overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json]
+  - key: qolda_en
+    label: "Qolda, en"
+    lang: en
+    server: qolda
+    overrides: [backend=qolda, policy.stop.calibration_file=calib/qolda_dev.json]
+  - key: qolda_kk_nv
+    label: "Qolda, kk, no verification"
+    lang: kk
+    verify: false
+    server: qolda
+    overrides: [backend=qolda]
+  - key: qwen_kk
+    label: "Qwen3-VL-4B, kk"
+    lang: kk
+    server: qwen
+    overrides: [backend=qwen3vl_4b, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json]
+  - key: qwen_kkru
+    label: "Qwen3-VL-4B, kk-ru"
+    lang: kk_ru
+    server: qwen
+    overrides: [backend=qwen3vl_4b, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json]
+  - key: qwen_en
+    label: "Qwen3-VL-4B, en"
+    lang: en
+    server: qwen
+    overrides: [backend=qwen3vl_4b, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json]
+  - key: mt_qwen_kk
+    label: "NLLB kk→en, then Qwen3-VL-4B in English"
+    lang: kk
+    server: qwen
+    overrides: [backend=qwen3vl_4b, goal=mt_command, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json]
+  - key: mt_qwen_kkru
+    label: "NLLB kk-ru→en, then Qwen3-VL-4B in English"
+    lang: kk_ru
+    server: qwen
+    overrides: [backend=qwen3vl_4b, goal=mt_command, policy.stop.calibration_file=calib/qwen3vl_4b_dev.json]
+  # ---- secondary arms (the nested 297-episode subset)
+  - key: oracle
+    label: "Ground-truth detector (navigation ceiling)"
+    lang: none
+    secondary: true
+    # box masks, no fusion: as the dev ceilings were measured (D-064); the oracle's masks are exact anyway
+    overrides: [detector=oracle_semantic, segmenter=box, perception.detection.fusion.enabled=false,
+                run.episodes.subset_file=splits/hm3d_v1_test_secondary.txt]
+  - key: mt_kk
+    label: "NLLB kk→en, then Qolda in English (same-model translation)"
+    lang: kk
+    server: qolda
+    secondary: true
+    overrides: [backend=qolda, goal=mt_command, policy.stop.calibration_file=calib/qolda_dev.json,
+                run.episodes.subset_file=splits/hm3d_v1_test_secondary.txt]
+  - key: qolda_kk_top1
+    label: "Qolda, kk, one hypothesis"
+    lang: kk
+    server: qolda
+    secondary: true
+    overrides: [backend=qolda, goal=top1, policy.stop.calibration_file=calib/qolda_dev.json,
+                run.episodes.subset_file=splits/hm3d_v1_test_secondary.txt]
+  - key: vlfm_nllb_kk
+    label: "VLFM-style, NLLB-translated Kazakh label"
+    lang: kk
+    verify: false
+    server: qolda                 # warm-up only: the arm makes no model call
+    secondary: true
+    overrides: [backend=qolda, goal=mt_word, run.episodes.subset_file=splits/hm3d_v1_test_secondary.txt]
+  - key: qwen_kk_nv
+    label: "Qwen3-VL-4B, kk, no verification"
+    lang: kk
+    verify: false
+    server: qwen
+    secondary: true
+    overrides: [backend=qwen3vl_4b, run.episodes.subset_file=splits/hm3d_v1_test_secondary.txt]
+contrasts:                         # the Holm family (analysis plan §5; D-066: C3 vs translate-first Qwen, C6-C7 kk-ru)
+  - [qolda_kk, qwen_kk]                        # C1  H3
+  - [qolda_kk, qwen_kk, qolda_en, qwen_en]     # C2  H3 interaction
+  - [qolda_kk, mt_qwen_kk]                     # C3  native model vs translate-first with the general VLM
+  - [qolda_kk, qolda_kk_nv]                    # C4  H4
+  - [qolda_en, qolda_kk]                       # C5  the gap H1 decomposes
+  - [qolda_kkru, qwen_kkru]                    # C6  H3, mixed kk-ru
+  - [qolda_kkru, mt_qwen_kkru]                 # C7  translate-first, mixed kk-ru
+decompositions: [[qolda_en, qolda_kk], [qwen_en, qwen_kk]]
+secondary_contrasts:               # exploratory, on the 297-episode subset
+  - [qolda_en, qwen_en]
+  - [qolda_kk, vlfm_en]
+  - [qolda_kk, mt_kk]
+  - [qwen_kk, qwen_kk_nv]
+  - [qolda_kk_top1, qolda_kk]
+  - [qolda_kk, vlfm_nllb_kk]
+  - [qwen_kk, mt_qwen_kk]
+secondary_subset_file: splits/hm3d_v1_test_secondary.txt
+breakdowns: [goal_category, command_lang]

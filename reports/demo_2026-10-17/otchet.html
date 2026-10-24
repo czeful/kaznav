@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>KazNav: этап А</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Literata:opsz,wght@7..72,500;7..72,650&display=swap">
+<style>
+/* Layout: one reading column (≈70ch) for prose; tables, the pipeline and videos break out to a wider track. */
+:root {
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --fg: #16212b;
+  --muted: #566573;
+  --line: #d8e0e7;
+  --accent: #0b6f93;          /* sky blue of the Kazakh flag, darkened for text contrast */
+  --accent-soft: #e3f2f8;
+  --gold: #9a7410;            /* steppe gold, for the second-level marks */
+  --gold-soft: #f7efd9;
+  --good: #23704a;
+  --good-soft: #e3f3ea;
+  --bad: #a3332b;
+  --bad-soft: #f9e6e4;
+  --font-display: "Literata", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
+  --text: 1rem;
+  --small: 0.875rem;
+  --h3: 1.15rem;
+  --h2: 1.55rem;
+  --h1: 2.1rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f161c; --surface: #16212a; --fg: #e3eaf0; --muted: #9aa9b6; --line: #2a3742;
+    --accent: #5cc4ea; --accent-soft: #123342; --gold: #e0b84a; --gold-soft: #33290f;
+    --good: #6fd29c; --good-soft: #143224; --bad: #f08a80; --bad-soft: #3a1b18; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f161c; --surface: #16212a; --fg: #e3eaf0; --muted: #9aa9b6; --line: #2a3742;
+  --accent: #5cc4ea; --accent-soft: #123342; --gold: #e0b84a; --gold-soft: #33290f;
+  --good: #6fd29c; --good-soft: #143224; --bad: #f08a80; --bad-soft: #3a1b18; color-scheme: dark;
+}
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--text); line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.page { max-width: 1120px; margin: 0 auto; padding-block: 40px 80px; display: flex; flex-direction: column; gap: 56px; }
+.prose { max-width: 72ch; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.25; margin: 0; }
+h1 { font-size: var(--h1); font-weight: 650; }
+h2 { font-size: var(--h2); font-weight: 650; }
+h3 { font-size: var(--h3); font-weight: 650; }
+p { margin: 0; }
+section { display: flex; flex-direction: column; gap: 18px; }
+.sub { display: flex; flex-direction: column; gap: 12px; }
+.eyebrow { font-family: var(--font-mono); font-size: var(--small); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+small, .small { font-size: var(--small); }
+code, .mono { font-family: var(--font-mono); font-size: 0.9em; }
+a { color: var(--accent); }
+ul, ol { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+
+header.top { display: flex; flex-direction: column; gap: 14px; border-bottom: 2px solid var(--accent); padding-bottom: 24px; }
+.status { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.chip { font-family: var(--font-mono); font-size: 0.8rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+.chip.gold { border-color: var(--gold); color: var(--gold); background: var(--gold-soft); }
+nav.toc ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 24px; padding-left: 1.4em; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: var(--small); }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; background: var(--accent-soft); }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.good { color: var(--good); font-weight: 600; }
+.bad { color: var(--bad); font-weight: 600; }
+
+.pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.stage { background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.stage.lang { border-top-color: var(--gold); }
+.stage .when { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); }
+.stage h4 { margin: 0; font-size: 1rem; font-family: var(--font-body); font-weight: 600; }
+.stage p { font-size: var(--small); }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: var(--small); color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 12px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--accent); }
+.legend span.lg::before { background: var(--gold); }
+
+pre.json { font-family: var(--font-mono); font-size: 0.82rem; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; overflow-x: auto; margin: 0; line-height: 1.5; }
+.formula { font-family: var(--font-mono); font-size: 0.9rem; background: var(--accent-soft); padding: 8px 12px; border-radius: 4px; overflow-x: auto; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card h4 { margin: 0; font-size: 1rem; font-weight: 600; }
+.card.sig { border-left: 4px solid var(--good); }
+.card.dir { border-left: 4px solid var(--gold); }
+.card.weak { border-left: 4px solid var(--bad); }
+
+.videos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 22px; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+video { width: 100%; max-width: 100%; border-radius: 6px; border: 1px solid var(--line); background: #000; aspect-ratio: 1280 / 233; }
+video.wide { aspect-ratio: 1280 / 467; }
+figcaption { font-size: var(--small); color: var(--muted); }
+figcaption b { color: var(--fg); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 560px) { :root { --h1: 1.6rem; --h2: 1.3rem; } }
+</style>
+
+<main class="page">
+
+<header class="top">
+  <span class="eyebrow">Промежуточный отчёт · 17 октября 2026</span>
+  <h1>Навигация робота-пылесоса по командам на казахском языке</h1>
+  <p class="prose">Робот в симуляторе ищет предмет в незнакомой квартире по устной команде на казахском (kk), смешанном
+  казахско-русском (kk_ru) или английском (en). Сравниваются казахская визуально-языковая модель Qolda-4B, мультиязычная
+  Qwen3-VL-4B того же размера и машинный перевод. Ниже — результаты последнего запуска: 19 вариантов системы на одних и тех же
+  57 эпизодах.</p>
+  <div class="status">
+    <span class="chip gold">предварительно: dev-квартиры, не тест</span>
+    <span class="chip">1083 эпизода</span>
+    <span class="chip">Habitat-Sim · HM3D</span>
+  </div>
+  <nav class="toc" aria-label="Содержание">
+    <ol>
+      <li><a href="#about">О работе</a></li>
+      <li><a href="#hypotheses">Гипотезы и научная новизна</a></li>
+      <li><a href="#architecture">Архитектура робота</a></li>
+      <li><a href="#tests">Последний запуск: что тестировали</a></li>
+      <li><a href="#results">Результаты, сильные и слабые стороны</a></li>
+      <li><a href="#next">Что дальше</a></li>
+    </ol>
+  </nav>
+</header>
+
+<!-- ============================================================ 1 -->
+<section id="about">
+  <span class="eyebrow">1 · О работе</span>
+  <h2>Тема и цель</h2>
+  <div class="prose sub">
+    <p><b>Задача.</b> Zero-shot ObjectNav: робот без обучения на этой задаче должен найти в незнакомой квартире объект
+    заданной категории (кровать, стул, диван, унитаз, телевизор, растение) и остановиться рядом с ним. Команда даётся
+    естественной фразой, например «Төсек қайда? Шаршап тұрмын» («Где кровать? Я устал»).</p>
+    <p><b>Зачем.</b> Почти все работы по навигации роботов к объектам — на английском. Казахский — малоресурсный язык, в
+    быту его часто смешивают с русским, и в казахских домах есть предметы, которых нет в англоязычных наборах данных
+    (қазан, сандық, текемет). Работа отвечает на вопрос: <i>где и почему</i> навигация по казахской команде теряет
+    качество по сравнению с английской и помогает ли родная казахская VLM по сравнению с мультиязычной и с машинным
+    переводом.</p>
+    <p><b>Робот.</b> Колёсный робот-пылесос: диаметр 0.34 м, камера RGB-D на высоте 0.15 м. Для сравнения с мировыми
+    результатами тот же конвейер работает на стандартном агенте Habitat (камера на 0.88 м).</p>
+    <p><b>Среда.</b> Симулятор Habitat-Sim, 3D-сканы реальных квартир HM3D, стандартный набор эпизодов HM3D ObjectNav v1.
+    Команды написаны носителями языка параллельно на kk, kk_ru и en.</p>
+  </div>
+</section>
+
+<!-- ============================================================ 2 -->
+<section id="hypotheses">
+  <span class="eyebrow">2 · Гипотезы и научная ценность</span>
+  <h2>Что мы проверяем</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Гипотеза</th><th>Как проверяем</th><th>Что есть сейчас (dev)</th></tr></thead>
+      <tbody>
+        <tr><td><b>H1.</b> Потеря на казахском возникает на стыке «язык → зрение» (понимание команды, детекция, проверка), а не в навигации</td>
+            <td>Каждая неудача относится ровно к одному этапу; разрыв SR(en) − SR(kk) раскладывается на вклады этапов. H1 — если вклад «язык + восприятие» больше половины разрыва, в том числе при порядке «сначала навигация»</td>
+            <td>Qwen: весь разрыв 17.5 п. — непонимание языка (значимо, p = 0.013). Qolda: разрыв 10.5 п., целиком в визуальной проверке; навигация — 0. <span class="good">Поддерживается</span></td></tr>
+        <tr><td><b>H2.</b> Для культурных предметов разрыв больше, а машинный перевод его увеличивает</td>
+            <td>Пары «культурный ↔ обычный» (қазан ↔ кастрюля, сандық ↔ сундук, текемет ↔ ковёр): фото и 3D-модели в сценах; сравнивается разрыв en − kk</td>
+            <td>Пилот (без робота): переводчик правильно передал культурный предмет в 1 из 15 команд, Qolda — в 11 из 15 (p = 0.002). На роботе ещё не проверялось</td></tr>
+        <tr><td><b>H3.</b> Родная казахская модель сокращает казахский разрыв; на английском она не лучше</td>
+            <td>Qolda kk против Qwen kk на одних эпизодах; взаимодействие (Qolda − Qwen)<sub>kk</sub> − (Qolda − Qwen)<sub>en</sub></td>
+            <td>Qolda kk 15 против Qwen kk 14 из 57 — наравне. Разрыв en − kk у Qolda меньше (10.5 против 17.5 п.), взаимодействие +7 п. в пользу H3. Пока не значимо</td></tr>
+        <tr><td><b>H4.</b> Проверка VLM перед остановкой повышает успех, но требует калибровки уверенности</td>
+            <td>С проверкой против без проверки; ошибка калибровки (ECE) до и после</td>
+            <td>Qwen en: 24 против 14 без проверки (p = 0.041). ECE после калибровки: Qolda 0.071 → 0.033, Qwen 0.137 → 0.017. На казахском у Qolda проверка пока не помогает</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose muted small">Главная проверка гипотез — главная таблица на тестовых квартирах (547 эпизодов) после заморозки плана анализа.
+  Всё в этом отчёте — dev-данные: настройка и предварительный просмотр.</p>
+
+  <h3>Научная новизна</h3>
+  <div class="cards">
+    <div class="card"><h4>Новая постановка</h4><p class="small">ObjectNav без обучения по командам на малоресурсном казахском и смешанной казахско-русской речи, на низком роботе-пылесосе. Насколько нам известно, такой работы нет (проверяется обзором литературы).</p></div>
+    <div class="card"><h4>Где ломается язык</h4><p class="small">Метод разложения потерь по этапам: разрыв «казахский против английского» точно делится на язык, восприятие и навигацию. Применим к любому языку и любой модульной системе.</p></div>
+    <div class="card"><h4>Родная модель в замкнутом цикле</h4><p class="small">Сравнение родной VLM, мультиязычной VLM и машинного перевода в цикле навигации, а не только на тестах вопросов и ответов. Уже видно: понимание команды и визуальная проверка — разные способности.</p></div>
+    <div class="card"><h4>Культурные предметы</h4><p class="small">Пары культурных и обычных предметов с одинаковой вставкой в сцены — новый ресурс для культурно-обусловленного воплощённого ИИ.</p></div>
+    <div class="card"><h4>Открытые ресурсы</h4><p class="small">Банк команд от носителей (kk / kk_ru / en, с рецензированием), казахский словарь категорий, стенд с роботом-пылесосом и пересчитанными под камеру 0.15 м критериями успеха.</p></div>
+    <div class="card"><h4>Строгость</h4><p class="small">План анализа фиксируется до теста; единица анализа — квартира; поправка Holm; все решения записаны в журнал до прогонов (D-001 … D-069).</p></div>
+  </div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section id="architecture">
+  <span class="eyebrow">3 · Архитектура</span>
+  <h2>Как устроен робот</h2>
+  <p class="prose">Система модульная, в духе VLFM (Yokoyama et al., 2024): классическая навигация по своей карте плюс готовые
+  нейросети для зрения и языка. Ни одна модель не обучается на нашей задаче. Языковая модель вызывается редко, только чтобы
+  понять команду и проверить находку; детектор работает на каждом шаге. Детектор, маски, карта и навигация одинаковы во всех
+  вариантах, поэтому разница между вариантами — это разница в обработке языка.</p>
+
+  <h3>3.1. Конвейер</h3>
+  <div class="legend"><span>алгоритм или визуальная модель, каждый шаг</span><span class="lg">языковая модель, редко</span></div>
+  <div class="pipeline">
+    <div class="stage lang"><span class="when">1 раз за команду</span><h4>Разбор команды</h4><p>VLM превращает казахскую фразу в цель («төсек») и 3 английских визуальных описания с весами.</p></div>
+    <div class="stage"><span class="when">каждый шаг, 0.5 с</span><h4>Камера RGB-D</h4><p>Цветной кадр и кадр глубины 640×480, камера на 0.15 м, наклон 20° вверх.</p></div>
+    <div class="stage"><span class="when">каждый шаг</span><h4>Карта занятости</h4><p>Вид сверху из клеток 5 см: свободно, препятствие, неизвестно.</p></div>
+    <div class="stage"><span class="when">каждый шаг</span><h4>Карта ценности</h4><p>SigLIP 2 оценивает, насколько вид похож на цель; значение пишется в видимые клетки.</p></div>
+    <div class="stage"><span class="when">каждый шаг × 3 описания</span><h4>Поиск цели</h4><p>MM-GroundingDINO ищет каждое описание, SAM 2 вырезает контур, точки переводятся в 3D.</p></div>
+    <div class="stage"><span class="when">каждый шаг</span><h4>Память кандидатов</h4><p>«Здесь, вероятно, кровать»: позиция и уверенность, слитая по кадрам.</p></div>
+    <div class="stage"><span class="when">каждый шаг</span><h4>Решение и путь</h4><p>Исследовать фронтир или ехать к кандидату; путь по карте (Дейкстра), колёса (pure pursuit).</p></div>
+    <div class="stage lang"><span class="when">~2–3 раза за эпизод</span><h4>Проверка перед остановкой</h4><p>VLM по кропу отвечает «это кровать?»; уверенность калибруется; выше порога — стоп.</p></div>
+  </div>
+
+  <h3>3.2. Модели: кто за что отвечает</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Модель</th><th>Роль</th><th>Вход → выход</th><th>Сколько раз</th><th class="num">Время</th><th>Где</th></tr></thead>
+      <tbody>
+        <tr><td><b>Qolda-4B</b> (казахская VLM от ISSAI; InternViT-300M + Qwen3-4B) <i>или</i> <b>Qwen3-VL-4B-Instruct</b></td>
+            <td>понимание команды и визуальная проверка</td>
+            <td>разбор: текст команды → JSON с целью и 3 гипотезами; проверка: кроп + вопрос → вероятность «да»</td>
+            <td>разбор 1 раз на команду; проверка ~2–3 раза за эпизод</td><td class="num">разбор ~6 с<br>проверка ~1 с</td>
+            <td>свой сервер на GPU, bf16, ~8 ГБ</td></tr>
+        <tr><td><b>MM-GroundingDINO base</b> (Swin-B)</td><td>открытый детектор: ищет объект по тексту</td>
+            <td>кадр + одно английское описание → рамки с уверенностью</td><td>каждый шаг × число описаний (~1200–2000 проходов за эпизод)</td>
+            <td class="num">~0.1 с / проход</td><td>процесс робота, GPU</td></tr>
+        <tr><td><b>SAM 2.1-tiny</b></td><td>сегментатор: точный контур объекта</td><td>кадр + рамка → маска</td>
+            <td>только в шагах с находками (~30%)</td><td class="num">доли секунды</td><td>процесс робота, GPU</td></tr>
+        <tr><td><b>SigLIP 2 base</b></td><td>«похоже ли на цель», карта ценности</td><td>кадр + описания → сходство</td>
+            <td>каждый шаг (тексты кодируются 1 раз)</td><td class="num">доли секунды</td><td>процесс робота, GPU</td></tr>
+        <tr><td><b>NLLB-200 600M</b></td><td>машинный перевод (только варианты «переводчик»)</td><td>казахская команда → английская</td>
+            <td>1 раз на команду</td><td class="num">~1 с</td><td>CPU</td></tr>
+        <tr><td><b>Идеальный детектор</b> (не модель)</td><td>эталон: распознавание по разметке симулятора</td><td>пиксели цели → точная маска</td>
+            <td>каждый шаг, только вариант «потолок»</td><td class="num">—</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose small muted">Видеопамять: сервер VLM ~8 ГБ + процесс робота ~3.5 ГБ на карте 12 ГБ, поэтому одновременно работает одна VLM.
+  Эпизод с VLM длится 3.5–6 минут, из них на VLM ~10 секунд.</p>
+
+  <h3>3.3. Что происходит на каждом шаге</h3>
+  <div class="prose sub">
+    <p><b>Карта занятости.</b> 19 200 точек глубины (каждый 4-й пиксель) переводятся в 3D. Препятствие — точка на высоте
+    0.03–0.195 м: в это пылесос упрётся; выше он проезжает (под столом), ниже 5 см под уровнем пола — обрыв. Клетки вдоль луча
+    отмечаются «свободно», клетка с препятствием — «занято». Свидетельства копятся в логарифме шансов: клетка становится
+    занятой после двух наблюдений, так одна шумная точка не перекрывает проход.</p>
+    <p><b>Фронтиры и карта ценности.</b> Фронтир — граница известной свободной области с неизвестной. SigLIP 2 сравнивает
+    кадр с фразами «a photo of a bed with pillows.» и т. д.; взвешенная сумма записывается в видимые клетки с уверенностью,
+    падающей к краю кадра. Робот едет к фронтиру с наибольшим «ценность − 0.002 × длина пути», то есть туда, где «пахнет
+    кроватью», а не к ближайшему неизвестному (идея VLFM).</p>
+    <p><b>Поиск и кандидаты.</b> Детектор проверяет каждое из трёх описаний отдельным проходом, рамки с уверенностью ≥ 0.5
+    проходят дальше. SAM 2 вырезает контур (иначе в рамку попадает стена позади), точки маски переводятся в 3D, точки у пола
+    отбрасываются. Детекции ближе 0.6 м объединяются в одного кандидата. Уверенность кандидата сливается по кадрам: увидели
+    снова — растёт; должен был быть виден, но детектор промолчал — падает. Кандидат с уверенностью ≥ 0.45 считается
+    надёжным, и к нему робот едет.</p>
+    <p><b>Решение.</b> Сначала осмотр на 360°. Затем: надёжный кандидат ближе 0.6 м и виден в кадре — проверка; кандидат
+    дальше — подъезд; иначе — фронтир; фронтиров нет — к подозрительным кандидатам; ехать некуда — конец эпизода.</p>
+    <p><b>Путь и движение.</b> Планировщик — алгоритм Дейкстры по 8-связной сетке своей карты: известное 1, неизвестное 1.5,
+    штраф у стен; препятствия расширены на радиус робота. Контроллер pure pursuit ведёт робота к точке в 20 см впереди по
+    пути (до 0.3 м/с). Упёрся — сдаёт назад и ставит на карту виртуальное препятствие. Робот не видит navmesh и разметку
+    сцены: это знает только оценщик.</p>
+  </div>
+
+  <h3>3.4. Языковой модуль</h3>
+  <div class="prose sub">
+    <p><b>Разбор команды.</b> Промпт на казахском просит ответить строго JSON: цель в словарной форме и 3–5 английских
+    визуальных описаний с весами. Настоящий ответ Qolda на «Төсекті тауып берші»:</p>
+  </div>
+  <pre class="json">{"target": "төсек",
+ "hypotheses": [{"en": "bed with white sheets", "w": 0.5},
+                {"en": "bed in a bedroom",      "w": 0.3},
+                {"en": "bed with pillows",      "w": 0.2}],
+ "rooms": ["bedroom"]}</pre>
+  <div class="prose sub">
+    <p>Ответ проверяется по схеме (только латиница в описаниях, веса 0..1); при ошибке модель получает её текст и
+    исправляет, до 3 попыток. Температура 0: при одинаковом входе разбор одинаков. Для сравнения, Qwen на ту же
+    команду ответила «door standing open», «door slightly ajar»: слово «төсек» она не знает.</p>
+    <p><b>Проверка перед остановкой.</b> Вопрос задаётся на языке команды: «Суреттегі негізгі зат «төсек» болып табыла ма?
+    Тек «иә» немесе «жоқ» деп жауап бер.» Нужна не только буква ответа, но и уверенность: сервер возвращает 10 самых
+    вероятных первых токенов, и P(иә) считается по их вероятностям. Казахские слова токенизатор режет по буквам, поэтому
+    варианты ответа начинаются с разных букв (и / ж).</p>
+    <p><b>Калибровка.</b> Сырая уверенность моделей нечестная: Qwen говорит 0.98 про чужие предметы, Qolda — 0.3–0.5 про
+    настоящие цели. Platt scaling переводит её в честную вероятность, порог подбирается по максимуму F1; оба — на
+    1100–1700 ответах из dev-квартир, где правда известна из симулятора:</p>
+  </div>
+  <div class="formula">P<sub>честная</sub> = sigmoid(a · logit(P<sub>сырая</sub>) + b) &nbsp;·&nbsp; Qolda: a = 0.51, b = −0.58, порог 0.30 &nbsp;·&nbsp; Qwen: a = 0.16, b = −1.41, порог 0.41</div>
+  <div class="prose sub">
+    <p>Несколько взглядов на одного кандидата складываются в логарифме шансов; повторные взгляды засчитываются с
+    коэффициентом 0.5, потому что они коррелированы. <b>Исправление D-069:</b> раньше коэффициент 0.5 применялся и к первому
+    взгляду, поэтому первый ответ должен был быть заметно выше порога; теперь первый ответ засчитывается полностью.</p>
+    <p><b>Веса гипотез.</b> Ответ проверки уточняет, какое из описаний «правильное». Если кандидат, найденный по «bed in a
+    bedroom», оказался кроватью, вес этого описания растёт (байесовское обновление), и карта ценности дальше опирается на
+    него.</p>
+  </div>
+
+  <h3>3.5. Как оценивается результат</h3>
+  <div class="prose sub">
+    <p><b>Успех</b> — робот сказал «стоп» не дальше 0.1 м от точки обзора цели (место в пределах 1 м, откуда цель видна
+    с камеры робота; точки пересчитаны под высоту 0.15 м). Это стандарт habitat-lab. <b>SPL</b> — успех с поправкой на
+    длину пути. Каждая неудача относится к одному этапу: не понял команду; цель не попала в кадр; детектор не узнал;
+    проверка отвергла настоящую цель; остановился у чужого предмета; видел, но не доехал; застрял.</p>
+    <p><b>Идеальный робот</b> — тот же робот, но распознавание берётся из разметки симулятора. Это потолок навигации: он
+    показывает, сколько теряется на распознавании, а сколько на самой езде.</p>
+    <p><b>Воспроизводимость:</b> эпизод зависит только от его номера; каждый вызов модели, картинка и решение записаны;
+    повтор эпизода даёт тот же результат (проверено на 41 повторе).</p>
+  </div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section id="tests">
+  <span class="eyebrow">4 · Последний запуск</span>
+  <h2>Этап А: 19 вариантов на одних и тех же эпизодах</h2>
+  <div class="prose sub">
+    <p><b>Зачем.</b> Предварительный просмотр главной таблицы на квартирах, которые не участвовали ни в настройке, ни в
+    калибровке, с видео одних и тех же эпизодов во всех вариантах. Ничего по этим результатам не подбиралось.</p>
+    <p><b>Условия.</b> 57 эпизодов в 8 квартирах HM3D (train), по 8–10 на категорию; робот-пылесос; лимит 800 шагов;
+    проверка откалибрована и исправлена (D-069), где не сказано иное. Всего 1083 эпизода, ~60 часов чистого счёта на одной RTX 5070.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Группа вариантов</th><th>Что меняется</th><th>Зачем</th></tr></thead>
+      <tbody>
+        <tr><td><b>Qolda</b> kk / kk_ru / en, с проверкой</td><td>родная казахская VLM разбирает команду и проверяет находку</td><td>главный метод; сравнение языков (H1)</td></tr>
+        <tr><td><b>Qwen</b> kk / kk_ru / en, с проверкой</td><td>то же с мультиязычной VLM того же размера</td><td>родная модель против мультиязычной (H3)</td></tr>
+        <tr><td><b>Переводчик NLLB → Qwen</b> kk / kk_ru</td><td>команду переводят на английский, дальше всё делает Qwen по-английски</td><td>«а может, просто перевести?»</td></tr>
+        <tr><td><b>Без проверки</b>: Qolda и Qwen × kk / kk_ru / en</td><td>робот останавливается у первого надёжного кандидата</td><td>нужна ли проверка (H4); понимание языка отдельно от проверки</td></tr>
+        <tr><td><b>Qolda до исправления</b> kk / kk_ru / en</td><td>проверка с найденной ошибкой D-069</td><td>эффект исправления</td></tr>
+        <tr><td><b>Английский робот без VLM</b></td><td>детектору дают слово категории «bed», команду не разбирают</td><td>базовая линия как VLFM</td></tr>
+        <tr><td><b>Идеальный робот</b></td><td>распознавание по разметке симулятора</td><td>потолок навигации</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Видео</h3>
+  <p class="prose small muted">На каждой плитке подпись: вариант и исход (зелёная — нашёл, красная — причина неудачи). Сверху в каждой плитке —
+  команда, гипотезы модели, решение робота; справа — карта робота и карта ценности. Шесть роликов «рядом» — все эпизоды, у
+  которых видео пишется во всех вариантах (выбраны заранее по номеру эпизода, не по результату). Два ролика с кроватью
+  подобраны как иллюстрация.</p>
+  <div class="videos">
+    <figure>
+      <video class="" controls muted playsinline preload="metadata" src="video/web/krovat_3CBBjsNkhqW_5733.mp4"></video>
+      <figcaption><b>«Төсек қайда? Шаршап тұрмын»</b> («Где кровать? Я устал»). Qolda kk — нашла; Qwen kk не поняла команду
+      и искала дверь; переводчик → Qwen — нашёл. Английский робот без VLM в этом эпизоде кровать не нашёл.</figcaption>
+    </figure>
+    <figure>
+      <video class="" controls muted playsinline preload="metadata" src="video/web/krovat_CthA7sQNTPK_14783.mp4"></video>
+      <figcaption><b>«Төсекті тауып берші»</b>. Qolda kk нашла кровать за 162 шага; Qwen kk не поняла команду (800 шагов
+      поиска двери); переводчик → Qwen нашёл за 734 шага.</figcaption>
+    </figure>
+    <figure>
+      <video class="wide" controls muted playsinline preload="metadata" src="video/web/ryadom_toilet_wPLokgvCnuk_39344.mp4"></video>
+      <figcaption><b>Унитаз.</b> Все шесть вариантов находят цель: простой случай, где язык не мешает.</figcaption>
+    </figure>
+    <figure>
+      <video class="wide" controls muted playsinline preload="metadata" src="video/web/ryadom_sofa_YmWinf3mhb5_22236.mp4"></video>
+      <figcaption><b>Диван.</b> Qolda kk, Qwen kk, переводчик и английский робот находят; оба варианта kk_ru — проверка
+      отвергла настоящий диван.</figcaption>
+    </figure>
+    <figure>
+      <video class="wide" controls muted playsinline preload="metadata" src="video/web/ryadom_sofa_YmWinf3mhb5_23069.mp4"></video>
+      <figcaption><b>Диван.</b> Qolda kk — проверка отвергла цель; Qwen kk остановилась далеко; переводчик, kk_ru и
+      английский робот находят.</figcaption>
+    </figure>
+    <figure>
+      <video class="wide" controls muted playsinline preload="metadata" src="video/web/ryadom_plant_wPLokgvCnuk_16636.mp4"></video>
+      <figcaption><b>Растение.</b> Находят переводчик и Qwen kk_ru; Qolda kk и английский робот останавливаются у чужого
+      предмета.</figcaption>
+    </figure>
+    <figure>
+      <video class="wide" controls muted playsinline preload="metadata" src="video/web/ryadom_chair_CthA7sQNTPK_38153.mp4"></video>
+      <figcaption><b>Стул.</b> Трудный эпизод: не находит ни один реальный вариант (находит только идеальный робот);
+      переводчик неправильно перевёл команду.</figcaption>
+    </figure>
+    <figure>
+      <video class="wide" controls muted playsinline preload="metadata" src="video/web/ryadom_chair_qk9eeNeR4vw_6635.mp4"></video>
+      <figcaption><b>Стул.</b> Тоже не находит никто: ложные остановки, «видел, но не доехал», ошибка перевода.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============================================================ 5 -->
+<section id="results">
+  <span class="eyebrow">5 · Результаты</span>
+  <h2>Что показал запуск</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Вариант (57 эпизодов)</th><th class="num">kk</th><th class="num">kk_ru</th><th class="num">en</th></tr></thead>
+      <tbody>
+        <tr><td><b>Qolda</b>, с проверкой</td><td class="num">26.3% (15)</td><td class="num">29.8% (17)</td><td class="num">36.8% (21)</td></tr>
+        <tr><td><b>Qwen</b>, с проверкой</td><td class="num">24.6% (14)</td><td class="num">33.3% (19)</td><td class="num">42.1% (24)</td></tr>
+        <tr><td>Переводчик NLLB → Qwen</td><td class="num">35.1% (20)</td><td class="num">31.6% (18)</td><td class="num">—</td></tr>
+        <tr><td>Qolda без проверки</td><td class="num">31.6% (18)</td><td class="num">35.1% (20)</td><td class="num">33.3% (19)</td></tr>
+        <tr><td>Qwen без проверки</td><td class="num">28.1% (16)</td><td class="num">24.6% (14)</td><td class="num">24.6% (14)</td></tr>
+        <tr><td>Qolda до исправления D-069</td><td class="num">5.3% (3)</td><td class="num">17.5% (10)</td><td class="num">22.8% (13)</td></tr>
+        <tr><td>Английский робот без VLM</td><td class="num"></td><td class="num"></td><td class="num">40.4% (23)</td></tr>
+        <tr><td>Идеальный робот (потолок)</td><td class="num"></td><td class="num"></td><td class="num">78.9% (45)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose small muted">95% доверительный интервал на 57 эпизодах — около ±12 п., поэтому разницы меньше ~10 п. пока не доказаны.
+  Значимость — точный тест McNemar на одних и тех же эпизодах.</p>
+
+  <h3>Откуда разрыв «английский − казахский»</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Модель</th><th class="num">en</th><th class="num">kk</th><th class="num">Разрыв</th><th class="num">из-за языка</th><th class="num">из-за восприятия</th><th class="num">из-за навигации</th></tr></thead>
+      <tbody>
+        <tr><td>Qolda</td><td class="num">36.8%</td><td class="num">26.3%</td><td class="num">10.5 п.</td><td class="num">0</td><td class="num">10.5</td><td class="num">0</td></tr>
+        <tr><td>Qwen</td><td class="num">42.1%</td><td class="num">24.6%</td><td class="num">17.5 п.</td><td class="num">17.5</td><td class="num">3.5</td><td class="num">−3.5</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cards">
+    <div class="card sig"><h4>Значимо: Qwen теряет на казахском</h4><p class="small">Qwen en 24 → kk 14 (p = 0.013). Весь разрыв — непонимание команды: в 10 эпизодах «төсек» понят как дверь. У Qolda ошибок понимания 0 во всех языках.</p></div>
+    <div class="card sig"><h4>Значимо: проверка помогает</h4><p class="small">Qwen en с проверкой 24 против 14 без неё (p = 0.041): проверка отсекает ложные остановки.</p></div>
+    <div class="card sig"><h4>Значимо: исправление D-069</h4><p class="small">Найденная по логам ошибка в правиле остановки; после исправления Qolda kk 3 → 15 (p = 0.002).</p></div>
+    <div class="card dir"><h4>Направление: Qolda против Qwen на kk</h4><p class="small">15 против 14 — наравне, но теряют по-разному: Qwen — в понимании языка, Qolda — в визуальной проверке на казахском. Без проверки на kk_ru Qolda 20 против 14.</p></div>
+    <div class="card dir"><h4>Направление: разрыв у Qolda меньше</h4><p class="small">Qolda теряет на казахском 10.5 п., Qwen — 17.5 п. Преимущество Qwen на английском (+3 эпизода) на казахском исчезает (Qolda +1).</p></div>
+    <div class="card dir"><h4>Переводчик → Qwen на kk: 35.1%</h4><p class="small">Лучший казахский вариант с проверкой, хотя переводчик неправильно понял 14 команд (стулья, унитазы): выигрывает за счёт сильной английской проверки Qwen. На kk_ru переводчик уже не впереди.</p></div>
+  </div>
+
+  <h3>Сильные и слабые стороны</h3>
+  <div class="cards">
+    <div class="card sig"><h4>Сильные</h4>
+      <ul class="small">
+        <li>Навигация работает: с идеальным распознаванием 79%, цель попадает в кадр в ~90% эпизодов.</li>
+        <li>Qolda понимает казахские и смешанные команды без ошибок; мультиязычная модель и переводчик ошибаются в 10–14 эпизодах из 57.</li>
+        <li>Лучший английский VLM-вариант (Qwen en, 42%) на уровне базовой линии; на стандартном агенте проверка ранее дала 43% против 30% (dev).</li>
+        <li>Диагностика по логам находит конкретные причины потерь (так найдена ошибка D-069).</li>
+        <li>Строгая методика: одинаковые эпизоды для всех вариантов, правила до прогонов, воспроизводимость.</li>
+      </ul>
+    </div>
+    <div class="card weak"><h4>Слабые</h4>
+      <ul class="small">
+        <li>Визуальная проверка Qolda на казахском неуверенна: отвергает настоящую цель в 8 эпизодах против 2 на английском.</li>
+        <li>Калибровка подобрана на 10 квартирах и хуже переносится на новые.</li>
+        <li>Много ложных остановок у вариантов без проверки и много «видел, но не доехал» у вариантов с проверкой.</li>
+        <li>Телевизоры почти не находит никто: камера у пола не видит экран на стене вблизи.</li>
+        <li>57 эпизодов — мало для доказательства разниц меньше 10 п.; это dev, не тест.</li>
+        <li>Одна видеокарта: ~60 часов счёта на один такой запуск.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>К чему пришли</h3>
+  <div class="prose sub">
+    <p>Казахская команда сама по себе роботу не мешает: родная модель понимает её без ошибок, а мультиязычная значимо
+    теряет на непонимании. Абсолютный успех казахского робота пока ограничен не языком, а последним модулем — визуальной
+    проверкой, которая на казахском у Qolda неуверенна. Именно поэтому в сумме Qolda kk и Qwen kk наравне, а переводчик
+    с сильной английской проверкой Qwen выходит вперёд. Если сделать проверку одинаковой для всех языков, останется только
+    разница в понимании казахского, где Qolda сильнее.</p>
+  </div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section id="next">
+  <span class="eyebrow">6 · План</span>
+  <h2>Что делаем дальше</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Шаг</th><th>Зачем</th><th>Оценка</th></tr></thead>
+      <tbody>
+        <tr><td><b>Проверка, независимая от языка</b>: вопрос по-английски по английской гипотезе, одинаково для всех вариантов</td><td>убрать штраф казахской проверки; сравнение моделей сведётся к пониманию языка</td><td>dev, ~1–2 дня</td></tr>
+        <tr><td>Калибровка на большем числе квартир и проверка переноса</td><td>порог, который работает на новых квартирах</td><td>~1 день</td></tr>
+        <tr><td>«Не бросать цель по дороге»; правило остановки для высоких предметов (телевизоры)</td><td>самые большие потери после проверки</td><td>dev, ~2–3 дня</td></tr>
+        <tr><td>Стандартный агент с Qolda kk / kk_ru</td><td>сравнение с мировыми результатами (VLFM 52.5% на HM3D)</td><td>~1–2 дня</td></tr>
+        <tr><td>Культурные предметы: фото и 3D-модели (қазан, сандық, текемет…)</td><td>главная проверка H2: где перевод ломается</td><td>сбор данных</td></tr>
+        <tr><td>60 тестовых команд от носителей, заморозка плана анализа</td><td>условие для теста</td><td>сбор данных</td></tr>
+        <tr><td>Главная таблица на тестовых квартирах (547 + 297 эпизодов), таблица (а), устойчивость</td><td>подтверждение гипотез</td><td>~3 недели на своей видеокарте или ~2–4 дня на арендованной (~$100–200)</td></tr>
+        <tr><td>Обсудить: дообучение «зрения» Qolda на кропах из тренировочных квартир</td><td>сильнее проверка на казахском; меняет постановку (уже не zero-shot)</td><td>~1.5–3 недели</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose small muted">Подробные таблицы (все 19 вариантов, попарные сравнения, разбивка по предметам) — в
+  <span class="mono">reports/demo_2026-10-17/tables/</span>; журнал решений — <span class="mono">docs/decisions.md</span> (D-064 … D-069).</p>
+</section>
+
+</main>
+
+</body>
+</html>
