@@ -496,10 +496,10 @@ None yet (the plan is not frozen).
 
 | # | decision | options | where it is discussed |
 |---|---|---|---|
-| 1 | "Ask from afar" on the robot-vacuum | keep it (2–3× fewer steps) or ask only within 0.6 m (precision of "stop" fell 0.45 → 0.28 on fresh scenes) | D-073 |
+| 1 | ~~"Ask from afar" on the robot-vacuum~~ **decided 2026-10-26 (D-082): kept**, one architecture for both embodiments; the precision drop is reported under E2 | — | D-073, D-082 |
 | 2 | Final calibration artifacts | refit on all dev scenes; a separate artifact for the standard agent fitted on its own crops | §3, D-076 |
 | 3 | Spoken commands (E1) | in this paper or a separate one; which arm(s), languages and how many speakers | D-077, D-078 |
-| 4 | Third VLM of the same size | Gemma 3 4B or none | §3 |
+| 4 | Third VLM of the same size | **Gemma 3 4B chosen (D-083)**; it enters the robot arms only if it passes the technical admission rule of D-083 (English-only criteria) | §3, D-083 |
 | 5 | Light-verifier row (E3) | include on 297 episodes or not | D-075 |
 | 6 | Table (a) arms | add `qwen_en` and `oracle` or not | D-076 |
 | 7 | Embodiment of H2 option B | robot-vacuum, standard agent or both | §5 |

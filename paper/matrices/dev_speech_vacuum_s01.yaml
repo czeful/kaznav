@@ -1,0 +1,32 @@
+# D-081 (speaker S01), robot-vacuum part: the spoken-command arm chosen on the standard agent (rule in docs/decisions.md D-078)
+# runs on the fresh dev3 scenes, everything as the arm qolda_kk of dev_confirm (stage 4, 23.6%) except where the
+# parse comes from. Only the chosen arm is run (runs/jobs/d081_choice.txt); the other stays unrun by the rule.
+name: dev_speech_vacuum_s01
+title: "DEV: spoken commands (Qolda-AVL), human speaker S01, robot-vacuum, dev3 (D-081)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev3.txt
+  - run.video.fraction=0.2
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+arms:
+  - {key: avl_kk_e2e, label: "Spoken kk, end-to-end: Qolda-AVL parses the recording; Qolda 4B verifies", lang: kk,
+     server: qolda, accent: true,
+     overrides: [backend=qolda, backend.prompts.parse_goal=default/parse_goal/v4, policy.verification.question_lang=en,
+                 policy.stop.calibration_file=calib/qolda_dev18_en.json, policy.verification.commit_approach=true,
+                 policy.verification.verify_range_m=1.5, policy.approach.stop_mode=visible,
+                 ++backend.parse_replay.prompt=speech/parse_goal/v1,
+                 "++backend.parse_replay.sources=[runs/speech/S01_skip/vlm_calls.jsonl]"]}
+  - {key: avl_kk_cascade, label: "Spoken kk, cascade: Qolda-AVL transcript, Qolda 4B parses and verifies", lang: kk,
+     server: qolda,
+     overrides: [backend=qolda, backend.prompts.parse_goal=default/parse_goal/v4, policy.verification.question_lang=en,
+                 policy.stop.calibration_file=calib/qolda_dev18_en.json, policy.verification.commit_approach=true,
+                 policy.verification.verify_range_m=1.5, policy.approach.stop_mode=visible,
+                 ++backend.parse_replay.prompt=default/parse_goal/v4,
+                 "++backend.parse_replay.sources=[runs/speech/cascade_S01_qolda/vlm_calls.jsonl]"]}
+breakdowns: [goal_category]

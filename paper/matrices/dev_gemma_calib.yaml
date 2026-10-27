@@ -1,0 +1,25 @@
+# D-084: Gemma 3 4B (D-083) in the final system of stage 4 / stage 5 - prompt v4, English question about target_en,
+# last metre; only the model differs from the Qolda / Qwen arms it is paired with. Chooses NOTHING.
+name: dev_gemma_calib
+title: "DEV: Gemma 3 4B calibration runs (uncalibrated verifier), robot-vacuum, dev10 (D-084 a)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=wheeled_vacuum_kinematic
+  - eval.episode_budget.max_decision_steps=800
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev.txt
+  - run.video.fraction=0.05
+servers:
+  gemma: {start: bash tools/start_gemma.sh, pid_file: runs/servers/gemma.pid, health: "http://127.0.0.1:23335/v1/models"}
+arms:
+  - {key: gemma_kk, label: "Gemma 3 4B, kk (final system, uncalibrated verifier)", lang: kk, server: gemma,
+     overrides: [backend=gemma3_4b, backend.prompts.parse_goal=default/parse_goal/v4, policy.verification.question_lang=en,
+                 policy.verification.commit_approach=true, policy.verification.verify_range_m=1.5,
+                 policy.approach.stop_mode=visible]}
+  - {key: gemma_en, label: "Gemma 3 4B, en (final system, uncalibrated verifier)", lang: en, server: gemma,
+     overrides: [backend=gemma3_4b, backend.prompts.parse_goal=default/parse_goal/v4, policy.verification.question_lang=en,
+                 policy.verification.commit_approach=true, policy.verification.verify_range_m=1.5,
+                 policy.approach.stop_mode=visible]}
+breakdowns: [goal_category]
