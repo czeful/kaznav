@@ -21,12 +21,14 @@ MAX_ERROR_CHARS = 300
 
 @dataclass(frozen=True)
 class ParseLimits:
+    """Retry budget and the allowed number of distinct hypotheses of a goal parse."""
     max_attempts: int = 3
     min_hypotheses: int = 1
     max_hypotheses: int = 8
 
 
 def describe_error(e: Exception) -> str:
+    """Short, model-readable description of a validation error (used in the retry prompt)."""
     if isinstance(e, ValidationError):
         msg = "; ".join(f"{'.'.join(str(p) for p in err['loc']) or '<root>'}: {err['msg']}" for err in e.errors())
     else:
@@ -35,6 +37,11 @@ def describe_error(e: Exception) -> str:
 
 
 def validate_goal_text(text: str, limits: ParseLimits) -> GoalHypotheses:
+    """Extract, validate and normalise the goal JSON from raw model text.
+
+    Raises:
+        ValueError: If no valid goal JSON can be recovered or the number of hypotheses is out of range.
+    """
     goal = GoalHypotheses.model_validate(extract_json_object(text)).normalized()
     n = len(goal.hypotheses)
     if not limits.min_hypotheses <= n <= limits.max_hypotheses:

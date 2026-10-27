@@ -21,6 +21,7 @@ class JSONExtractionError(ValueError):
 
 
 def strip_think_block(text: str) -> str:
+    """Remove ``<think>...</think>`` blocks and surrounding whitespace."""
     return _THINK_BLOCK.sub("", text).strip()
 
 
@@ -53,6 +54,17 @@ def _find_balanced_braces(text: str) -> Optional[str]:
 
 
 def extract_json_object(raw_text: str) -> Dict[str, Any]:
+    """Recover one JSON object from raw model text.
+
+    Tries, in order: a fenced code block, the first balanced ``{...}`` span, and the whole text, each also with
+    trailing commas removed.
+
+    Returns:
+        The first candidate that parses as a JSON object.
+
+    Raises:
+        JSONExtractionError: If no candidate is a valid JSON object.
+    """
     text = strip_think_block(raw_text)
     candidates: List[str] = []
     fence = _FENCE.search(text)

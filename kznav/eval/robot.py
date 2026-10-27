@@ -49,6 +49,15 @@ def count_collision_events(contact: Sequence[bool], times: Sequence[float], merg
 
 @dataclass(frozen=True)
 class StuckParams:
+    """Thresholds of the stuck detector: the robot is commanded to move but barely moves or turns.
+
+    Attributes:
+        window_s: Length of the sliding time window.
+        min_displacement_m: Minimum translation within the window to count as moving.
+        min_yaw_change_rad: Minimum rotation within the window to count as turning.
+        min_cmd_lin: Linear command at or above which the robot counts as commanded to translate.
+        min_cmd_ang: Angular command at or above which the robot counts as commanded to turn.
+    """
     window_s: float
     min_displacement_m: float
     min_yaw_change_rad: float
@@ -73,6 +82,22 @@ class StuckMonitor:
         self.current_stuck_s = 0.0
 
     def update(self, t: float, x: float, y: float, yaw: float, v_cmd: float, w_cmd: float) -> bool:
+        """Feed one control tick and report whether the robot is stuck now.
+
+        Args:
+            t: Time of the tick in seconds; must increase strictly.
+            x: Position x in metres.
+            y: Position y in metres.
+            yaw: Heading in radians.
+            v_cmd: Commanded linear velocity.
+            w_cmd: Commanded angular velocity.
+
+        Returns:
+            True if, over a full window of commanded motion, the robot neither moved nor turned enough.
+
+        Raises:
+            ValueError: If ``t`` does not increase.
+        """
         if t <= self._last_t:
             raise ValueError("times must be strictly increasing")
         dt = 0.0 if self._last_t == -math.inf else t - self._last_t

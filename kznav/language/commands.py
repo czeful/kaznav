@@ -50,6 +50,7 @@ _LAT = re.compile(r"[A-Za-z]")
 
 @dataclass
 class NaturalCommand:
+    """One command intent, written by a native speaker in every study language, with its review history."""
     id: str
     category: str
     author: str
@@ -61,11 +62,13 @@ class NaturalCommand:
     notes: str = ""
 
     def approvals(self) -> int:
+        """Number of "ok" reviews by speakers other than the author."""
         return sum(1 for r in self.reviews if r.get("verdict") == "ok" and r.get("reviewer") != self.author)
 
 
 @dataclass
 class Issue:
+    """One problem found by ``NaturalCommands.validate``: level (error or warning), command id and message."""
     level: str                  # error | warning
     command_id: str
     message: str
@@ -112,12 +115,14 @@ class NaturalCommands:
 
     @property
     def review_status(self) -> str:
+        """``approved`` if every usable command is approved, else ``draft_needs_native_review``."""
         used = [c for v in self._usable.values() for c in v]
         if used and all(c.status == "approved" for c in used):
             return "approved"
         return "draft_needs_native_review"
 
     def usable(self, c: NaturalCommand) -> bool:
+        """Whether a command may be used under this bank's role (benchmark: approved test commands only)."""
         if self.role == "benchmark":
             return c.split == "test" and c.status == "approved" and c.approvals() >= self.min_reviews
         if self.role == "dev":
@@ -125,12 +130,18 @@ class NaturalCommands:
         return c.status != "rejected"                       # debug: everything not rejected
 
     def candidates(self, category: str) -> List[NaturalCommand]:
+        """The usable commands of a category, in id order.
+
+        Raises:
+            KeyError: If the category has no usable command under this role.
+        """
         if category not in self._usable:
             raise KeyError(f"{self.path}: no usable {self.role}-role command for category {category!r} "
                            f"(benchmark runs need approved test commands)")
         return self._usable[category]
 
     def pick(self, episode_id: str, category: str) -> NaturalCommand:
+        """The command of an episode: chosen from the episode id, so it is the same in every language and arm."""
         cands = self.candidates(category)
         return cands[stable_index(f"{episode_id}|command", len(cands))]
 
@@ -142,6 +153,7 @@ class NaturalCommands:
         return c.id, c.texts[lang].strip()
 
     def object_name(self, lang: str, category: str) -> Tuple[str, str]:
+        """The object's name in the language that names objects in ``lang`` (Russian for kk-ru), and that language."""
         wl = WORD_LANG[lang]
         return (self.lexicon.categories[category].names.get(wl) or [category])[0], wl
 
@@ -245,6 +257,7 @@ class TemplateCommands:
         return t["id"], text[0].upper() + text[1:]
 
     def object_name(self, lang: str, category: str) -> Tuple[str, str]:
+        """The object's name in the language that names objects in ``lang`` (Russian for kk-ru), and that language."""
         wl = WORD_LANG[lang]
         return (self.lexicon.categories[category].names.get(wl) or [category])[0], wl
 

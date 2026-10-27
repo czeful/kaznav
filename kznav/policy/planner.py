@@ -24,6 +24,7 @@ _OFFSETS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)
 
 @dataclass(frozen=True)
 class PlannerParams:
+    """Planner parameters (``policy.planner``): inflation margin, unknown-cell cost, wall proximity penalty, crop."""
     inflation_margin_m: float
     unknown_cost: float
     proximity_weight: float
@@ -33,11 +34,13 @@ class PlannerParams:
 
     @classmethod
     def from_config(cls, c: Mapping[str, Any]) -> "PlannerParams":
+        """Build from the ``policy.planner`` config block."""
         return cls(**{k: float(c[k]) for k in cls.__dataclass_fields__})
 
 
 @dataclass
 class PlanResult:
+    """Path costs from the robot to every cell of the map, with predecessors to recover paths."""
     ok: bool
     start: Tuple[int, int]
     dist: np.ndarray                 # full-map path cost (inf where unreachable)
@@ -46,9 +49,11 @@ class PlanResult:
     start_escaped: bool = False
 
     def cost_to(self, cell: Tuple[int, int]) -> float:
+        """Path cost to a cell (inf if unreachable)."""
         return float(self.dist[cell])
 
     def path_cells(self, goal: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """Cells of the cheapest path from the start to ``goal``; empty if unreachable."""
         if not np.isfinite(self.dist[goal]):
             return []
         n = self.dist.shape[1]
@@ -67,6 +72,12 @@ class PlanResult:
 
 
 class GridPlanner:
+    """Dijkstra planner on the robot's own occupancy map (see the module docstring for the cell costs).
+
+    Args:
+        params: Planner parameters.
+        robot_radius_m: Radius of the robot's footprint, added to the inflation margin.
+    """
     def __init__(self, params: PlannerParams, robot_radius_m: float):
         self.p = params
         self.radius = robot_radius_m

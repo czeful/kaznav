@@ -26,6 +26,7 @@ from .frames import habitat_to_map
 
 @dataclass
 class DriveEpisode:
+    """Result of one navmesh-path drive: outcome, time, path length, collisions and where it got stuck."""
     scene: str
     index: int
     start: List[float]
@@ -68,6 +69,22 @@ def sample_pairs(env: HabitatEnv, n: int, lo: float, hi: float, rng: np.random.G
 
 def drive_episode(env: HabitatEnv, cfg: Mapping[str, Any], vcfg: Mapping[str, Any], start: np.ndarray,
                   goal: np.ndarray, geodesic: float, scene: str, index: int, plan_pf) -> DriveEpisode:
+    """Drive the robot from ``start`` to ``goal`` along the planning navmesh with pure pursuit.
+
+    Args:
+        env: The simulator (articulated wheeled robot).
+        cfg: The run config (controller, stuck detection and collision merging are read).
+        vcfg: The check's config (spawn lift, time budget, replanning period, goal radius, stuck abort).
+        start: Start point on the navmesh.
+        goal: Goal point on the navmesh.
+        geodesic: Evaluation-navmesh geodesic distance from start to goal.
+        scene: Scene name recorded in the result.
+        index: Index of the pair in the scene.
+        plan_pf: Planning navmesh (radius inflated by a margin).
+
+    Returns:
+        The drive's outcome (``arrived``, ``stuck`` or ``timeout``) and its measurements.
+    """
     ctrl = PurePursuit(PurePursuitParams.from_config(cfg["policy"]["controller"]))
     path3 = env.shortest_path(start, goal, plan_pf)
     first = np.asarray(habitat_to_map(path3[1] if len(path3) > 1 else goal)) - np.asarray(habitat_to_map(start))
@@ -121,6 +138,18 @@ def drive_episode(env: HabitatEnv, cfg: Mapping[str, Any], vcfg: Mapping[str, An
 
 def run_scene(cfg: Mapping[str, Any], vcfg: Mapping[str, Any], scene_path: str, workdir: Path,
               rng: np.random.Generator) -> Tuple[List[DriveEpisode], Dict[str, Any]]:
+    """Run the navmesh-drive check on one scene.
+
+    Args:
+        cfg: The run config.
+        vcfg: The check's config (pair count and distances, planning margin, seed).
+        scene_path: Scene to load.
+        workdir: Directory for the simulator's generated files.
+        rng: Random generator for the start/goal pairs.
+
+    Returns:
+        The drives and a scene summary (navigable areas, pair count, wall time, top-down map).
+    """
     env = HabitatEnv(cfg, SceneSpec(scene_id=scene_path), workdir, seed=int(vcfg["seed"]))
     try:
         plan_pf = env.make_pathfinder(float(vcfg["planning_margin_m"]))
@@ -150,6 +179,7 @@ def _topdown(env: HabitatEnv, mpp: float = 0.05) -> Dict[str, Any]:
 
 
 def summarize(eps: List[DriveEpisode]) -> Dict[str, Any]:
+    """Aggregate drives: arrivals, stuck and timeout counts, collisions and stuck episodes per 100 m."""
     n = len(eps)
     if n == 0:
         return {"n": 0}
@@ -169,4 +199,5 @@ def summarize(eps: List[DriveEpisode]) -> Dict[str, Any]:
 
 
 def episode_dicts(eps: List[DriveEpisode]) -> List[Dict[str, Any]]:
+    """Drives as plain dicts (for JSON)."""
     return [asdict(e) for e in eps]

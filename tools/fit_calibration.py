@@ -29,6 +29,7 @@ from kznav.run.logging import completed_events  # noqa: E402
 
 
 def run_identity(run: Path) -> dict:
+    """Backend, model, verification prompt hash, role, dataset and split of a run (from its manifest)."""
     m = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
     b = m.get("backend") or {}
     return {"backend": b.get("name"), "model_id": b.get("model_id"),
@@ -38,6 +39,16 @@ def run_identity(run: Path) -> dict:
 
 
 def collect(runs, label: str):
+    """Raw verifier probabilities and labels of completed attempts in the runs.
+
+    Args:
+        runs: Run directories.
+        label: ``content`` (the crop shows the goal) or ``position`` (privileged position label).
+
+    Returns:
+        Probabilities, labels, episode groups for cross-validation, the runs' episode ids, and the number of calls
+        without a label.
+    """
     p, y, groups, episodes, missing = [], [], [], set(), 0
     for run in runs:
         for e in completed_events(run / "events.jsonl", "verification"):      # not failed attempts (D-046)
@@ -57,6 +68,7 @@ def collect(runs, label: str):
 
 
 def main() -> None:
+    """Command-line entry point: check the runs are compatible dev runs, fit the stop rule, write the artifact."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("runs", nargs="+")
     ap.add_argument("--out", required=True)

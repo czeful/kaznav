@@ -34,6 +34,7 @@ from .verification import crop_box
 
 @dataclass
 class Decision:
+    """The policy's decision for one step: what it does (spin, explore, approach, face, stop, ...) and why."""
     kind: str                                   # spin | explore | approach | face | stop | no_frontiers | no_plan
     path_xy: List[Tuple[float, float]] = field(default_factory=list)
     target_xy: Optional[Tuple[float, float]] = None
@@ -43,6 +44,18 @@ class Decision:
 
 
 class ObjectNavPolicy:
+    """Zero-shot ObjectNav policy: mapping, detection, value-guided exploration, approach, verification, stop.
+
+    Args:
+        cfg: The full run config (embodiment, policy and perception blocks are read).
+        detector: Open-vocabulary detector.
+        segmenter: Segmenter for detection masks.
+        queries: The goal's English hypotheses (detector queries).
+        intrinsics: Camera intrinsics.
+        seed: Seed of the per-episode random generators.
+        value_encoder: Encoder of the semantic value map; None selects the nearest frontier instead.
+        verifier: Verify-before-stop component, or None (stop on detection alone).
+    """
     def __init__(self, cfg: Mapping[str, Any], detector: Detector, segmenter: Segmenter, queries: Sequence[str],
                  intrinsics: Intrinsics, seed: int = 0, value_encoder: Optional[ValueEncoder] = None,
                  verifier: Any = None):
@@ -137,6 +150,15 @@ class ObjectNavPolicy:
 
     # ------------------------------------------------------------------ main step
     def step(self, obs: Any, aux: Optional[Mapping[str, Any]] = None) -> Decision:
+        """Update the maps from one observation and decide what to do next.
+
+        Args:
+            obs: The observation (RGB, depth, pose, camera transform).
+            aux: Ground-truth side channels for oracle detectors only.
+
+        Returns:
+            The decision, with the path to follow when the robot moves.
+        """
         assert self.map is not None, "call reset() first"
         pose = obs.pose
         seen = self.map.update(obs.depth, obs.camera_transform, float(obs.position[1]))

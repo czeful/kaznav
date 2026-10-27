@@ -23,31 +23,45 @@ TASKS = ("parse_goal", "verify_candidate", "describe")
 
 @dataclass(frozen=True)
 class PromptTemplate:
+    """One versioned prompt file: its reference (``set/task/vN``), SHA-256 and parsed content."""
     ref: str
     sha256: str
     data: Mapping[str, Any]
 
     @property
     def task(self) -> str:
+        """The task the prompt is for: ``parse_goal``, ``verify_candidate`` or ``describe``."""
         return str(self.data["task"])
 
     @property
     def review_status(self) -> str:
+        """Native-speaker review status declared in the file (e.g. ``pending_native_review``)."""
         return str(self.data.get("review_status", "unspecified"))
 
 
 class PromptLibrary:
+    """Loads versioned prompt files from ``<root>/<set>/<task>/v<N>.yaml`` and caches them."""
     def __init__(self, root: Path):
         self.root = Path(root)
         self._cache: Dict[str, PromptTemplate] = {}
 
     def path_for(self, ref: str) -> Path:
+        """File path of a prompt reference.
+
+        Raises:
+            ValueError: If the reference is not of the form ``<set>/<task>/v<N>``.
+        """
         parts = ref.strip("/").split("/")
         if len(parts) != 3 or not parts[2].startswith("v"):
             raise ValueError(f"prompt ref must look like '<set>/<task>/v<N>', got {ref!r}")
         return self.root / parts[0] / parts[1] / f"{parts[2]}.yaml"
 
     def load(self, ref: str) -> PromptTemplate:
+        """Load, validate and hash a prompt (line endings normalised to LF before hashing).
+
+        Raises:
+            ValueError: If the file does not match its reference or misses required fields.
+        """
         if ref not in self._cache:
             path = self.path_for(ref)
             raw = path.read_bytes().replace(b"\r\n", b"\n")
@@ -57,6 +71,7 @@ class PromptLibrary:
         return self._cache[ref]
 
     def all_refs(self) -> List[str]:
+        """References of all prompt files under the root, sorted by path."""
         refs = []
         for p in sorted(self.root.glob("*/*/v*.yaml")):
             refs.append(f"{p.parent.parent.name}/{p.parent.name}/{p.stem}")
@@ -105,6 +120,7 @@ def _system(data: Mapping[str, Any]) -> List[dict]:
 
 
 def build_parse_messages(tpl: PromptTemplate, text: str) -> List[dict]:
+    """Chat messages of a goal parse: system text, few-shot examples, then the command."""
     d = tpl.data
     msgs = _system(d)
     for ex in d.get("fewshot") or []:
@@ -115,6 +131,7 @@ def build_parse_messages(tpl: PromptTemplate, text: str) -> List[dict]:
 
 
 def build_parse_retry_messages(tpl: PromptTemplate, text: str, bad_response: str, error: str) -> List[dict]:
+    """The parse messages plus the invalid answer and a request to fix it (``retry_template``)."""
     msgs = build_parse_messages(tpl, text)
     msgs.append({"role": "assistant", "content": bad_response})
     msgs.append({"role": "user", "content": str(tpl.data["retry_template"]).format(error=error)})
@@ -122,6 +139,11 @@ def build_parse_retry_messages(tpl: PromptTemplate, text: str, bad_response: str
 
 
 def verify_block(tpl: PromptTemplate, lang: str) -> Tuple[str, Mapping[str, Any]]:
+    """The verification prompt block for a command language (via ``lang_map``) and that block's language.
+
+    Raises:
+        KeyError: If the prompt has no block for the language.
+    """
     d = tpl.data
     verify_lang = (d.get("lang_map") or {}).get(lang, lang)
     langs = d["languages"]
@@ -139,15 +161,18 @@ def build_verify_messages(tpl: PromptTemplate, target: str, lang: str) -> Tuple[
 
 
 def build_describe_messages(tpl: PromptTemplate, prompt: str) -> List[dict]:
+    """Chat messages of a free-text image description (diagnostics)."""
     d = tpl.data
     return _system(d) + [{"role": "user", "content": str(d["user_template"]).format(prompt=prompt)}]
 
 
 def fewshot_targets(tpl: PromptTemplate) -> List[str]:
+    """Objects used in the prompt's few-shot examples (tests check they are not evaluated categories)."""
     return [str(t) for t in (tpl.data.get("fewshot_targets") or [])]
 
 
 def prompt_summary(tpl: Optional[PromptTemplate]) -> Dict[str, str]:
+    """Reference, hash and review status of a prompt for the run manifest; empty for None."""
     if tpl is None:
         return {}
     return {"ref": tpl.ref, "sha256": tpl.sha256, "review_status": tpl.review_status}

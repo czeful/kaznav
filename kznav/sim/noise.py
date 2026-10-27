@@ -39,22 +39,26 @@ class _Seeded:
         self.reset_state()
 
     def reset_state(self) -> None:
+        """Reset per-episode state kept between calls (none by default)."""
         pass
 
 
 class DepthNoise(_Seeded, ABC):
+    """Depth-camera noise model."""
     @abstractmethod
     def apply(self, depth: np.ndarray) -> np.ndarray:
         """Noisy copy of a metric depth image (H x W, metres; 0 = no return)."""
 
 
 class ActuationNoise(_Seeded, ABC):
+    """Actuation noise model: the twist the drive realises for a commanded one."""
     @abstractmethod
     def apply(self, v: float, w: float, dt: float) -> Tuple[float, float]:
         """Velocities actually realised by the drive for commanded (v, w) over dt."""
 
 
 class OdometryDrift(_Seeded, ABC):
+    """Odometry drift model: the increment odometry reports for a measured one."""
     @abstractmethod
     def apply(self, dx: float, dy: float, dyaw: float) -> Tuple[float, float, float]:
         """Odometry increment as reported, given the measured increment in the robot frame."""
@@ -67,19 +71,25 @@ ODOMETRY_DRIFT: Registry[OdometryDrift] = Registry("odometry drift", builtin_mod
 
 @DEPTH_NOISE.register("none")
 class NoDepthNoise(DepthNoise):
+    """Noise-free depth (baseline runs)."""
     def apply(self, depth: np.ndarray) -> np.ndarray:
+        """Return the depth unchanged."""
         return depth
 
 
 @ACTUATION_NOISE.register("none")
 class NoActuationNoise(ActuationNoise):
+    """Noise-free actuation (baseline runs)."""
     def apply(self, v: float, w: float, dt: float) -> Tuple[float, float]:
+        """Return the command unchanged."""
         return v, w
 
 
 @ODOMETRY_DRIFT.register("none")
 class NoOdometryDrift(OdometryDrift):
+    """Drift-free odometry (baseline runs)."""
     def apply(self, dx: float, dy: float, dyaw: float) -> Tuple[float, float, float]:
+        """Return the increment unchanged."""
         return dx, dy, dyaw
 
 
@@ -124,6 +134,15 @@ def redwood_simulate(gt: np.ndarray, model: np.ndarray, noise_multiplier: float,
 
 @DEPTH_NOISE.register("redwood")
 class RedwoodDepthNoise(DepthNoise):
+    """Redwood depth-camera noise (see the module docstring).
+
+    Args:
+        spec: Config: optional ``model_file`` (default: habitat-sim's) and ``noise_multiplier``.
+        rng: The model's random stream.
+
+    Raises:
+        FileNotFoundError: If the distortion model file is not found.
+    """
     def __init__(self, spec: Mapping[str, Any], rng: np.random.Generator):
         super().__init__(spec, rng)
         path = spec.get("model_file") or redwood_model_path()
@@ -134,12 +153,15 @@ class RedwoodDepthNoise(DepthNoise):
         self.multiplier = float(spec.get("noise_multiplier", 1.0))
 
     def apply(self, depth: np.ndarray) -> np.ndarray:
+        """Noisy copy of the depth image, drawn from the model's own stream."""
         return redwood_simulate(depth, self.model, self.multiplier, self.rng)
 
 
 @DEPTH_NOISE.register("gaussian")
 class GaussianDepthNoise(DepthNoise):
+    """Multiplicative Gaussian depth noise with random dropout (``rel_std``, ``dropout``)."""
     def apply(self, depth: np.ndarray) -> np.ndarray:
+        """Noisy copy of the depth image; pixels without a return stay 0."""
         d = np.asarray(depth, dtype=np.float32)
         out = d * (1.0 + float(self.spec.get("rel_std", 0.01)) * self.rng.standard_normal(d.shape).astype(np.float32))
         drop = float(self.spec.get("dropout", 0.0))
@@ -152,15 +174,18 @@ class GaussianDepthNoise(DepthNoise):
 # ---------------------------------------------------------------------------- actuation and odometry
 @ACTUATION_NOISE.register("gaussian_twist")
 class GaussianTwistNoise(ActuationNoise):
+    """Gaussian twist errors held for ``hold_s`` seconds (see the module docstring)."""
     def __init__(self, spec: Mapping[str, Any], rng: np.random.Generator):
         super().__init__(spec, rng)
         self.reset_state()
 
     def reset_state(self) -> None:
+        """Drop the held errors; new ones are drawn on the next call."""
         self._left = 0.0
         self._ev = self._ew = self._bw = 0.0
 
     def apply(self, v: float, w: float, dt: float) -> Tuple[float, float]:
+        """Realised twist: scaled speeds plus a turn-rate bias while moving (no bias at rest)."""
         if self._left <= 1e-9:                     # tolerance: 10 x 0.1 s leaves ~1e-16 of a 1 s hold
             s = self.spec
             self._ev = float(s.get("v_rel_std", 0.05)) * float(self.rng.standard_normal())
@@ -174,7 +199,9 @@ class GaussianTwistNoise(ActuationNoise):
 
 @ODOMETRY_DRIFT.register("gaussian_increment")
 class GaussianIncrementDrift(OdometryDrift):
+    """Gaussian odometry drift per increment (see the module docstring)."""
     def apply(self, dx: float, dy: float, dyaw: float) -> Tuple[float, float, float]:
+        """Reported increment: scaled forward and turn components, lateral and heading noise per metre."""
         s, g = self.spec, self.rng
         dist = math.hypot(dx, dy)
         dx2 = dx * (1.0 + float(s.get("trans_rel_std", 0.02)) * float(g.standard_normal()))

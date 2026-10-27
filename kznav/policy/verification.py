@@ -37,6 +37,7 @@ from .calibration import CalibrationArtifact, Calibrator, IdentityCalibrator, ca
 
 @dataclass(frozen=True)
 class VerifyParams:
+    """Parameters of verify-before-stop (``policy.verification`` and the stop calibration)."""
     stop_threshold: float
     reject_below: float
     base_rate: float
@@ -52,6 +53,7 @@ class VerifyParams:
 
 @dataclass
 class VerifyEvent:
+    """One verification decision about one candidate, logged to ``events.jsonl``."""
     step: int
     cid: int
     p_raw: Optional[float]
@@ -99,6 +101,18 @@ def crop_box(rgb: np.ndarray, box: Sequence[float], padding: float, min_px: int)
 
 
 class Verifier:
+    """Decides, candidate by candidate, whether the robot may stop: asks the backend about crops and accumulates
+    the calibrated answers.
+
+    Args:
+        backend: VLM backend or local verifier with ``verify_candidate``.
+        query: What is asked about each crop (name and language).
+        params: Thresholds, call budget and crop settings.
+        belief: Hypothesis belief updated by every answer, or None.
+        calibrator: Maps raw P(yes) to calibrated probabilities; identity if None.
+        view_discount: Discount of repeated views of one candidate.
+        first_view_full: Count the first answer in full (D-069).
+    """
     def __init__(self, backend: Any, query: VerifyQuery, params: VerifyParams, belief: Optional[HypothesisBelief],
                  calibrator: Optional[Calibrator] = None, view_discount: float = 1.0, first_view_full: bool = False):
         self.backend = backend
@@ -112,6 +126,7 @@ class Verifier:
         self._state: Dict[int, _CandState] = {}
 
     def probability(self, cid: int) -> Optional[float]:
+        """Accumulated P(candidate is the target), or None if the candidate has not been asked about yet."""
         st = self._state.get(cid)
         return st.evidence.probability() if st is not None and st.calls else None
 
@@ -134,6 +149,7 @@ class Verifier:
         return bool(np.degrees(d) >= self.p.new_view_deg)
 
     def calls(self, cid: int) -> int:
+        """Number of verifier calls made for a candidate."""
         st = self._state.get(cid)
         return st.calls if st is not None else 0
 
@@ -234,10 +250,12 @@ class Verifier:
 
     @property
     def weights(self) -> Optional[List[float]]:
+        """Current hypothesis weights, or None without a belief."""
         return [float(w) for w in self.belief.weights] if self.belief is not None else None
 
 
 def event_dict(ev: VerifyEvent) -> Dict[str, Any]:
+    """A verification event as a JSON-ready dict."""
     return asdict(ev)
 
 
@@ -268,6 +286,20 @@ def question(cfg: Mapping[str, Any], target: str, lang: str, target_en: str = ""
 
 def make_verifier(cfg: Mapping[str, Any], backend: Any, target: str, lang: str, hypotheses: Sequence[str],
                   prior_weights: Sequence[float], target_en: str = "") -> Verifier:
+    """Build the verifier of one episode from the config: question, calibration, thresholds and belief.
+
+    Args:
+        cfg: The run config.
+        backend: VLM backend or local verifier.
+        target: The target as named in the command.
+        lang: Language of the command (or the pipeline language after translation).
+        hypotheses: The goal's English hypotheses.
+        prior_weights: Their parsed weights.
+        target_en: The model's own English name of the target, used by the English question.
+
+    Returns:
+        The verifier.
+    """
     pol = cfg["policy"]
     v, b = pol["verification"], pol["belief"]
     cal, thr, base, calibrated = load_stop_calibration(pol)

@@ -22,6 +22,7 @@ from .urdf import LINK_ROLES, RobotGeometry, build_urdf
 
 @dataclass(frozen=True)
 class ContactSummary:
+    """The robot's contacts in one tick: collisions (non-support contacts) and the support force."""
     collision: bool            # any non-support contact above the force threshold
     n_collision_points: int
     max_collision_force_n: float
@@ -36,6 +37,17 @@ def _mn():
 
 
 class WheeledRobot:
+    """The wheeled robot as a Bullet articulated object built from the generated URDF.
+
+    Args:
+        sim: The Habitat simulator (physics enabled).
+        emb: The embodiment config (geometry, drive, physics and contact thresholds are read).
+        workdir: Directory where the URDF is written.
+        actuation_noise: Actuation-noise model applied to every command.
+
+    Raises:
+        ValueError: If the physics mode is not ``articulated``.
+    """
     def __init__(self, sim: Any, emb: Mapping[str, Any], workdir: Path, actuation_noise: ActuationNoise):
         import habitat_sim
 
@@ -95,6 +107,7 @@ class WheeledRobot:
     # ------------------------------------------------------------------ state
     @property
     def object_id(self) -> int:
+        """Simulator object id of the robot."""
         return int(self.ao.object_id)
 
     def _rotation_wxyz(self) -> Tuple[float, float, float, float]:
@@ -108,6 +121,7 @@ class WheeledRobot:
         return np.array([p[0], p[1], p[2]], dtype=np.float64)
 
     def pose2d(self) -> Tuple[float, float, float]:
+        """Map-frame pose ``(x, y, yaw)`` of the reference point."""
         x, y = habitat_to_map(self.reference_position())
         return x, y, yaw_from_quat(self._rotation_wxyz())
 
@@ -118,10 +132,12 @@ class WheeledRobot:
         return math.degrees(math.acos(max(-1.0, min(1.0, float(up[1])))))
 
     def wheel_velocities(self) -> Tuple[float, float]:
+        """Left and right wheel joint velocities in rad/s."""
         jv = self.ao.joint_velocities
         return float(jv[self.dof["left"]]), float(jv[self.dof["right"]])
 
     def odometry_twist(self) -> Tuple[float, float]:
+        """Twist ``(v, w)`` measured from the wheel velocities (what wheel encoders report)."""
         wl, wr = self.wheel_velocities()
         return body_twist(wl, wr, self.geom.wheel_base, self.geom.wheel_radius)
 
@@ -165,6 +181,11 @@ class WheeledRobot:
 
     # ------------------------------------------------------------------ contacts
     def contacts(self) -> ContactSummary:
+        """Summarise this tick's contacts above the force threshold.
+
+        Upward contacts on wheels and casters carry the robot and are summed as support; every other contact is
+        a collision.
+        """
         me = self.object_id
         n_coll = 0
         max_f = 0.0

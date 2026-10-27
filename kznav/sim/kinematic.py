@@ -26,6 +26,13 @@ SLIDE_TOLERANCE_M = 1e-3          # try_step result farther than this from the t
 
 
 class KinematicBase:
+    """The wheeled robot's base moved kinematically on its navmesh (see the module docstring).
+
+    Args:
+        pathfinder: The robot's navmesh.
+        emb: The embodiment config (drive limits and control period are read).
+        actuation_noise: Actuation-noise model applied to every command.
+    """
     def __init__(self, pathfinder: Any, emb: Mapping[str, Any], actuation_noise: ActuationNoise):
         self.pathfinder = pathfinder
         self.limiter = VelocityLimiter(DriveLimits.from_config(emb["drive"]["limits"]))
@@ -63,10 +70,13 @@ class KinematicBase:
         return v, w, blocked
 
     def reference_position(self) -> np.ndarray:
+        """Habitat world position of the reference point (floor under the chassis centre)."""
         return map_to_habitat(self.x, self.y, self.h)
 
     def pose2d(self) -> Tuple[float, float, float]:
+        """Map-frame pose ``(x, y, yaw)``."""
         return self.x, self.y, self.yaw
 
     def odometry_twist(self) -> Tuple[float, float]:
+        """Twist realised in the last tick, as wheel encoders would report it."""
         return self.v_applied, self.w_applied

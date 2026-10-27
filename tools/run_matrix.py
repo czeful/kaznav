@@ -56,12 +56,14 @@ from kznav.run.benchmark import read_failures  # noqa: E402
 
 @dataclass
 class Cell:
+    """One arm x seed cell of a matrix and its run directory."""
     arm: dict
     seed: int
     path: Path
 
     @property
     def key(self) -> str:
+        """``<arm key>/seed<seed>``."""
         return f"{self.arm['key']}/seed{self.seed}"
 
 
@@ -74,6 +76,7 @@ def _rel(path: Path) -> str:
 
 
 def load_matrix(path: Path) -> dict:
+    """Read a matrix file and check its arm keys, servers and contrasts."""
     m = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     keys = [a["key"] for a in m["arms"]]
     if len(keys) != len(set(keys)):
@@ -91,11 +94,13 @@ def load_matrix(path: Path) -> dict:
 
 
 def cells(m: dict) -> List[Cell]:
+    """All cells of a matrix with their run directories."""
     root = REPO / m.get("out_root", "runs/matrix") / m["name"]
     return [Cell(a, int(s), root / a["key"] / f"seed{int(s)}") for a in m["arms"] for s in m.get("seeds", [0])]
 
 
 def cell_args(m: dict, c: Cell) -> List[str]:
+    """``run_eval.py`` arguments of a new cell: language, verification, overrides and seed."""
     a = c.arm
     args = ["--lang", str(a.get("lang", "none"))]
     if a.get("lang", "none") != "none" and not a.get("verify", True):
@@ -123,6 +128,7 @@ def status(c: Cell) -> Dict[str, object]:
 
 
 def plan(m: dict) -> pd.DataFrame:
+    """State of every cell (complete, partial, not started) as a table."""
     rows = []
     for c in cells(m):
         s = status(c)
@@ -142,11 +148,24 @@ def _healthy(url: str) -> bool:
 
 
 class Servers:
+    """Starts and stops the model servers so that at most one model is on the GPU.
+
+    Args:
+        spec: The matrix's ``servers`` block (start command, health URL, pid file, wait).
+        dry: Print what would be done without starting or stopping anything.
+    """
     def __init__(self, spec: Dict[str, dict], dry: bool):
         self.spec, self.dry = spec or {}, dry
         self.started: Optional[str] = None
 
     def ensure(self, name: Optional[str]) -> None:
+        """Make ``name`` the running server (None: no server), stopping the one this process started.
+
+        A server that is already up is used and left running afterwards.
+
+        Raises:
+            SystemExit: If another server is up or the server does not become healthy.
+        """
         if name == self.started:
             return
         self.stop()
@@ -173,6 +192,7 @@ class Servers:
         self.started = name
 
     def stop(self) -> None:
+        """Stop the server this process started, if any."""
         if self.started is None:
             return
         sp = self.spec[self.started]
@@ -190,6 +210,7 @@ class Servers:
 
 
 def run(m: dict, only: Optional[List[str]], dry: bool) -> int:
+    """Run or resume every unfinished cell, grouped by server; return 1 if any cell failed, else 0."""
     todo = [c for c in cells(m) if (not only or c.arm["key"] in only) and status(c)["state"] != "complete"]
     order = list(dict.fromkeys([None] + [c.arm.get("server") for c in todo]))      # no-server cells first
     servers = Servers(m.get("servers"), dry)
@@ -256,6 +277,7 @@ def write_spec(m: dict, out: Path, allow_partial: bool, part: str = "primary") -
 
 
 def main() -> None:
+    """Command-line entry point: ``plan``, ``run`` or ``spec``."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("plan", "run", "spec"):

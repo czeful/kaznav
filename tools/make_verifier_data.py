@@ -72,6 +72,7 @@ def goals_of_scene(split_file: Path, stem: str):
 
 
 def main() -> None:
+    """Command-line entry point: harvest labelled detector crops from robot-camera frames in unused train scenes."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dataset", default="hm3d_objectnav_v1_train")
     ap.add_argument("--embodiment", default="wheeled_vacuum_kinematic")

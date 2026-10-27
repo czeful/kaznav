@@ -16,6 +16,14 @@ from .openai_compat import OpenAICompatBackend
 
 @BACKENDS.register("qwen_vl")
 class QwenVLBackend(OpenAICompatBackend):
+    """Qwen-VL Instruct models behind the project's OpenAI-compatible server.
+
+    Rejects Thinking checkpoints and ``enable_thinking`` unless the config declares a control measurement,
+    mirroring the Qolda rule.
+
+    Raises:
+        BackendConfigError: If a Thinking checkpoint or thinking mode is configured outside a control measurement.
+    """
     def __init__(self, spec: Mapping[str, Any], prompts: PromptLibrary, sink=None, transport=None):
         super().__init__(spec, prompts, sink, transport)
         hf = str(self.spec.get("hf_repo", ""))

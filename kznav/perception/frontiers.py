@@ -17,12 +17,14 @@ _EIGHT = np.ones((3, 3), dtype=bool)
 
 @dataclass(frozen=True)
 class Frontier:
+    """One frontier region: its representative cell, number of cells and centroid (row, col)."""
     cell: Tuple[int, int]        # representative (row, col)
     size: int                    # number of frontier cells in the region
     centroid: Tuple[float, float]
 
 
 def reachable_mask(blocked: np.ndarray, start: Tuple[int, int]) -> np.ndarray:
+    """Cells connected to ``start`` through cells that are not blocked (8-connectivity)."""
     labels, _ = ndimage.label(~blocked, structure=_EIGHT)
     lab = labels[start]
     return labels == lab if lab > 0 else np.zeros_like(blocked)

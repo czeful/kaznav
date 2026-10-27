@@ -33,6 +33,12 @@ def _unit(seed: int, *parts: str) -> float:
 
 @BACKENDS.register("mock")
 class MockBackend(VLMBackend):
+    """Deterministic, GPU-free backend for tests and smoke runs.
+
+    Parses commands by looking up the category in the lexicon and answers verification questions with
+    pseudo-random but reproducible probabilities (a hash of the seed and the input key), pushed through the same
+    validation code as the real backends. Never used for reported numbers.
+    """
     def __init__(self, spec: Mapping[str, Any], prompts: PromptLibrary, sink=None):
         super().__init__(spec, prompts, sink)
         m = dict(self.spec.get("mock") or {})
@@ -51,6 +57,7 @@ class MockBackend(VLMBackend):
 
     @property
     def capabilities(self) -> BackendCapabilities:
+        """Static capabilities from the config (logprobs and images supported by default)."""
         return self._caps
 
     def _goal_json(self, text: str) -> str:

@@ -30,6 +30,7 @@ SAME_FLOOR_M = 0.5
 
 
 def main() -> None:
+    """Command-line entry point: classify each episode by floor and by reachability at several navmesh climbs."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--climbs", default="0.01,0.02,0.03")

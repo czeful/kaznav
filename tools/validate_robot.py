@@ -23,6 +23,7 @@ from kznav.sim.validation import Suite, results_json, to_markdown  # noqa: E402
 
 
 def main() -> None:
+    """Command-line entry point: run the suite, write the report, results and manifest."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--only", nargs="*", default=None, help="scenario names to run")
     ap.add_argument("--validation-config", default=str(REPO / "configs/validation/robot.yaml"))

@@ -34,6 +34,12 @@ def _plural_strip(tok: str) -> str:
 
 
 def normalize(text: str, *, english: bool = False) -> str:
+    """Normalise text for matching: casefold, ``_``/``-`` to spaces, punctuation removed, whitespace collapsed.
+
+    Args:
+        text: Text to normalise.
+        english: Also strip simple English plurals ("chairs" -> "chair").
+    """
     t = str(text).casefold().replace("_", " ").replace("-", " ")
     t = _PUNCT.sub(" ", t)
     toks = t.split()
@@ -49,6 +55,7 @@ def _contains_phrase(haystack: Sequence[str], needle: Sequence[str]) -> bool:
 
 @dataclass
 class Category:
+    """One object category: its word type (universal or cultural) and accepted names per language."""
     name: str
     word_type: str                              # universal | cultural
     names: Dict[str, List[str]]                 # lang -> accepted forms (lang in en/kk/ru)
@@ -56,10 +63,16 @@ class Category:
     dataset_labels: List[str] = field(default_factory=list)
 
     def en(self) -> List[str]:
+        """Accepted English names of the category."""
         return self.names.get("en", [])
 
 
 class Lexicon:
+    """Accepted object names per category and language (see the module docstring for the matching rules).
+
+    Raises:
+        ValueError: On a duplicate category or an unknown word type.
+    """
     def __init__(self, categories: Iterable[Category], source: str = ""):
         self.categories: Dict[str, Category] = {}
         for c in categories:
@@ -72,6 +85,7 @@ class Lexicon:
 
     @classmethod
     def load(cls, path: Path) -> "Lexicon":
+        """Load a lexicon YAML file."""
         data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
         cats = [
             Category(
@@ -89,10 +103,12 @@ class Lexicon:
         return self.categories[name]
 
     def match_en(self, category: str, hypothesis: str) -> bool:
+        """Whether an English hypothesis contains one of the category's English names as a contiguous phrase."""
         hyp = normalize(hypothesis, english=True).split()
         return any(_contains_phrase(hyp, normalize(s, english=True).split()) for s in self[category].en())
 
     def match_any_en(self, category: str, hypotheses: Iterable[str]) -> bool:
+        """Whether any of the hypotheses names the category (the "query names the object" check)."""
         return any(self.match_en(category, h) for h in hypotheses)
 
     def match_target(self, category: str, target: str, lang: str) -> Optional[bool]:

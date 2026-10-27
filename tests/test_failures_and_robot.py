@@ -1,3 +1,4 @@
+"""Episode outcome classification and the robot metrics (stuck detection, collision events)."""
 import math
 
 import numpy as np

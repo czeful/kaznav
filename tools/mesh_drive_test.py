@@ -24,6 +24,7 @@ from kznav.sim.mesh_drive import episode_dicts, run_scene, summarize  # noqa: E4
 
 
 def plot(path: Path, eps, topdown) -> None:
+    """Top-down plot of a scene's drives coloured by outcome, with the points where the robot got stuck."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -52,6 +53,7 @@ def plot(path: Path, eps, topdown) -> None:
 
 
 def main() -> None:
+    """Command-line entry point: run the drive test on every configured scene and write the report."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--validation-config", default=str(REPO / "configs/validation/mesh_drive.yaml"))
     ap.add_argument("--episodes", type=int, default=None)

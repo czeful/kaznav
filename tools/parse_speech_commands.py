@@ -55,6 +55,7 @@ def cer(hyp: str, ref: str) -> float:
 
 
 def set_dotted(d: dict, key: str, value) -> None:
+    """Set ``d[a][b]...`` from a dotted key, creating the intermediate dicts."""
     parts = key.split(".")
     for p in parts[:-1]:
         d = d.setdefault(p, {})
@@ -62,6 +63,7 @@ def set_dotted(d: dict, key: str, value) -> None:
 
 
 def summarize(rows, title: str) -> str:
+    """Markdown summary per language: parse success, matches, attempts, latency, CER and the misses."""
     langs = sorted({r["lang"] for r in rows}, key=["kk", "kk_ru", "en"].index)
     cols = [("parsed", "parse_ok"), ("target in dictionary form", "target_match"),
             ("a hypothesis names the object", "hypothesis_match"), ("target_en names the object", "target_en_ok")]
@@ -88,6 +90,7 @@ def summarize(rows, title: str) -> str:
 
 
 def main() -> None:
+    """Command-line entry point: parse every command once (resumable) and write the summary."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--input", choices=["speech", "text"], required=True)
     ap.add_argument("--speaker", default=None, help="speech: data/speech/<speaker>/ (default: the config's)")

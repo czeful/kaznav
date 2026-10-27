@@ -1,3 +1,4 @@
+"""Shared pytest fixtures: the repository root, the prompt library and a loader of backend configs."""
 import sys
 from pathlib import Path
 
@@ -10,11 +11,13 @@ if str(REPO) not in sys.path:
 
 @pytest.fixture(scope="session")
 def repo_root() -> Path:
+    """Root directory of the repository."""
     return REPO
 
 
 @pytest.fixture(scope="session")
 def prompt_lib():
+    """The repository's prompt library (``prompts/``)."""
     from kznav.language.prompts import PromptLibrary
 
     return PromptLibrary(REPO / "prompts")

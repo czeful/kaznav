@@ -33,6 +33,18 @@ class TranslationError(BackendError):
 
 
 class Translator(ABC):
+    """Machine translation in front of the parser (translate-first baselines, D-039).
+
+    Every translation is logged like a model call; the settings hash plays the role of the prompt hash in the
+    replay key.
+
+    Args:
+        spec: Translator config (``name``, ``model_id``, ``lang_codes``, ``target_lang``, generation settings).
+        sink: Receives one ``CallRecord`` per translation.
+
+    Raises:
+        BackendConfigError: If a required key or the target language code is missing.
+    """
     def __init__(self, spec: Mapping[str, Any], sink: Optional[CallSink] = None):
         self.spec: Dict[str, Any] = dict(spec)
         for key in ("name", "model_id", "lang_codes", "target_lang"):
@@ -55,6 +67,11 @@ class Translator(ABC):
         self.last_record: Optional[CallRecord] = None
 
     def code(self, lang: str) -> str:
+        """The model's language code for a command language.
+
+        Raises:
+            BackendConfigError: If the language has no configured code.
+        """
         try:
             return self.lang_codes[lang]
         except KeyError:
@@ -62,6 +79,14 @@ class Translator(ABC):
                                      f"configured: {sorted(self.lang_codes)}") from None
 
     def translate(self, text: str, src_lang: str) -> Tuple[str, CallRecord]:
+        """Translate ``text`` from ``src_lang`` into the target language and record the call.
+
+        Returns:
+            The translation (whitespace normalised) and its call record.
+
+        Raises:
+            TranslationError: If the output is empty or a replayed translation is missing.
+        """
         src, tgt = self.code(src_lang), self.code(self.target_lang)
         inputs = {"text": text, "src_lang": src_lang, "tgt_lang": self.target_lang, "src_code": src, "tgt_code": tgt}
         rec = CallRecord(method="translate", backend=self.name, model_id=self.model_id,

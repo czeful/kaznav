@@ -68,6 +68,7 @@ PAIRS = [  # (a, b, вопрос)
 
 
 def wilson(k: int, n: int, z: float = 1.96):
+    """95% Wilson interval of ``k`` out of ``n``, in percent."""
     p = k / n
     d = 1 + z * z / n
     c = (p + z * z / (2 * n)) / d
@@ -76,6 +77,7 @@ def wilson(k: int, n: int, z: float = 1.96):
 
 
 def mcnemar(a: pd.Series, b: pd.Series):
+    """Discordant counts (only A, only B) and the exact two-sided McNemar p-value of two success series."""
     oa, ob = int((a & ~b).sum()), int((~a & b).sum())
     n = oa + ob
     p = min(1.0, 2 * sum(math.comb(n, i) for i in range(min(oa, ob) + 1)) / 2 ** n) if n else 1.0
@@ -83,11 +85,13 @@ def mcnemar(a: pd.Series, b: pd.Series):
 
 
 def load(key: str):
+    """An arm's ``episodes.csv`` indexed by episode id, or None if the arm has not started."""
     f = RUNS / key / "seed0" / "episodes.csv"
     return pd.read_csv(f).set_index("episode_id").sort_index() if f.exists() else None
 
 
 def main() -> None:
+    """Command-line entry point: build the stage-4 tables (``--partial`` previews unfinished arms)."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--partial", action="store_true", help="leave out arms that have not finished all episodes")
     args = ap.parse_args()

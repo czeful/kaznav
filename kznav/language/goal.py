@@ -33,6 +33,16 @@ TRANSLATION_MODES = ("none", "command", "word")
 
 @dataclass(frozen=True)
 class GoalSettings:
+    """What the parsed goal hands to the detector, value map and verifier (config group ``goal``).
+
+    Attributes:
+        name: ``multi`` (the method) or an ablation: ``top1``, ``mt_word``, ``mt_command``.
+        max_hypotheses: Keep only the N highest-weighted hypotheses; None keeps all.
+        translation: ``none``, ``command`` or ``word`` (translate-first baselines, D-039).
+
+    Raises:
+        BackendConfigError: If the translation mode or ``max_hypotheses`` is invalid.
+    """
     name: str = "multi"
     max_hypotheses: Optional[int] = None    # None: all parsed hypotheses
     translation: str = "none"               # none | command | word
@@ -45,6 +55,11 @@ class GoalSettings:
 
     @classmethod
     def from_config(cls, goal: Mapping[str, Any]) -> "GoalSettings":
+        """Build from the ``goal`` config group and check that a translator is present exactly when needed.
+
+        Raises:
+            BackendConfigError: If a translation mode lacks a translator or a translator is configured without one.
+        """
         mh = goal.get("max_hypotheses")
         st = cls(name=str(goal["name"]), max_hypotheses=None if mh is None else int(mh),
                  translation=str(goal.get("translation", "none")))
@@ -86,6 +101,11 @@ def select_hypotheses(texts: Sequence[str], weights: Sequence[float],
 
 @dataclass
 class LanguageGoal:
+    """The episode's goal as the language model understood it, plus how it scores against the lexicon.
+
+    ``hypotheses`` and ``weights`` are what the policy receives; ``target_match`` and ``hypothesis_match`` are
+    privileged checks used only for the language columns of the results.
+    """
     command_id: str
     text: str
     lang: str                               # language of the command as given
@@ -110,9 +130,11 @@ class LanguageGoal:
 
     @property
     def effective_lang(self) -> str:
+        """Language of the parse and the verification question (the translator's target language if translated)."""
         return self.pipeline_lang or self.lang
 
     def summary(self) -> Dict[str, Any]:
+        """JSON-ready summary for the run's ``goal`` events and ``goals.csv``."""
         return {"command_id": self.command_id, "text": self.text, "lang": self.lang, "category": self.category,
                 "parse_ok": self.parse_ok, "target": self.target, "hypotheses": self.hypotheses,
                 "weights": self.weights, "rooms": self.rooms, "target_match": self.target_match,
@@ -189,6 +211,15 @@ def _translate_word(base: Dict[str, Any], st: GoalSettings, translator: Translat
 
 
 class GoalCache:
+    """Parses each distinct command once per run and reuses the result (parsing at temperature 0 is deterministic).
+
+    Args:
+        backend: The VLM backend.
+        calls: The sink the backend's call records reach (the parse record is taken from it).
+        lexicon: Lexicon for the privileged language checks, or None.
+        settings: Goal settings; defaults to ``multi``.
+        translator: Translator for the translate-first modes, or None.
+    """
     def __init__(self, backend: Any, calls: ListSink, lexicon: Optional[Lexicon],
                  settings: Optional[GoalSettings] = None, translator: Optional[Translator] = None):
         self.backend, self.calls, self.lexicon = backend, calls, lexicon
@@ -198,6 +229,7 @@ class GoalCache:
 
     def get(self, *, command_id: str, text: str, lang: str, category: str, word_type: str,
             word: Optional[str] = None, word_lang: Optional[str] = None) -> LanguageGoal:
+        """The goal for one episode's command, parsed on first use; the episode's own command id is kept."""
         key = (text, lang, category, word, word_lang)
         if key not in self._cache:
             self._cache[key] = parse_command(self.backend, self.calls, command_id=command_id, text=text, lang=lang,

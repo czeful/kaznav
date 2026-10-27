@@ -21,6 +21,7 @@ def _clean_text(v: str) -> str:
 
 
 class VisualHypothesis(BaseModel):
+    """One English visual description of the target for the detector, with its prior weight in [0, 1]."""
     en: str = Field(description="English visual description for an open-vocabulary detector")
     w: float = Field(ge=0.0, le=1.0, description="Prior weight; normalised by the pipeline")
 
@@ -36,6 +37,7 @@ class VisualHypothesis(BaseModel):
 
 
 class TargetAttributes(BaseModel):
+    """Attributes of the target named in the command (material, colour, size), in English."""
     material: List[str] = Field(default_factory=list)
     color: List[str] = Field(default_factory=list)
     size: List[str] = Field(default_factory=list)
@@ -47,6 +49,16 @@ class TargetAttributes(BaseModel):
 
 
 class GoalHypotheses(BaseModel):
+    """The validated goal JSON a VLM returns for a command.
+
+    Attributes:
+        target: The target as named in the command, in the command language.
+        hypotheses: 1-8 English visual hypotheses with weights.
+        attributes: Material, colour and size named in the command.
+        rooms: Rooms named in the command or where the object usually is.
+        landmarks: Landmarks named in the command.
+        target_en: The model's own plain English name of the target (prompt v3 and later).
+    """
     target: str = Field(description="Target concept as named in the command, in the command language")
     hypotheses: List[VisualHypothesis] = Field(min_length=1, max_length=8)
     attributes: TargetAttributes = Field(default_factory=TargetAttributes)
@@ -99,10 +111,12 @@ class GoalHypotheses(BaseModel):
 
     @property
     def texts(self) -> List[str]:
+        """Hypothesis texts in rank order."""
         return [h.en for h in self.hypotheses]
 
     @property
     def weights(self) -> List[float]:
+        """Hypothesis weights in rank order."""
         return [h.w for h in self.hypotheses]
 
 
@@ -117,6 +131,7 @@ class VerifyQuery:
 @dataclass(frozen=True)
 class VerificationResult:
     #: P(crop shows the target), uncalibrated, or None if the backend could not provide it.
+    """The answer to one verification question about an image crop."""
     p_target: Optional[float]
     #: logprobs | unavailable | mock | replay
     source: str
@@ -127,4 +142,5 @@ class VerificationResult:
     label_from_text: Optional[bool]
 
     def as_dict(self) -> dict:
+        """Return the result as a plain dict (stored as the call record's output)."""
         return asdict(self)

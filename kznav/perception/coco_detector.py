@@ -19,6 +19,12 @@ from .grounding_dino import box_area_frac
 
 @DETECTORS.register("coco_closed_set")
 class CocoClosedSetDetector(Detector):
+    """Closed-set COCO detector (RT-DETR) for the VLFM-style reference row (D-062).
+
+    Args:
+        spec: Detector config: ``model_id``, ``box_threshold``, optional ``aliases`` (query -> COCO class),
+            ``max_box_area_frac`` and ``device``.
+    """
     def __init__(self, spec: Mapping[str, Any]):
         super().__init__(spec)
         import torch
@@ -38,10 +44,21 @@ class CocoClosedSetDetector(Detector):
         self.last_latency_s = float("nan")
 
     def coco_class(self, query: str) -> Optional[int]:
+        """COCO class id of a query (through ``aliases`` or the query's own name), or None if it maps to none."""
         q = query.strip().lower()
         return self.class_ids.get(self.aliases.get(q, q))
 
     def detect(self, rgb: np.ndarray, queries: Sequence[str], aux: Optional[Mapping[str, Any]] = None) -> List[Detection]:
+        """Detect the COCO classes the queries map to; queries without a class get no detections.
+
+        Args:
+            rgb: HxWx3 uint8 image.
+            queries: Text queries.
+            aux: Ignored (ground-truth side channels are for oracle detectors only).
+
+        Returns:
+            Detections at or above ``box_threshold`` whose box is not larger than ``max_box_area_frac``.
+        """
         wanted = {}
         for qi, q in enumerate(queries):
             cid = self.coco_class(q)
@@ -73,4 +90,5 @@ class CocoClosedSetDetector(Detector):
         return out
 
     def describe_config(self) -> Mapping[str, Any]:
+        """Class, config and counters (unmapped queries, dropped large boxes) for the manifest."""
         return {**super().describe_config(), "model_id": self.model_id}

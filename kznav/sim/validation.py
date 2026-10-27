@@ -25,6 +25,7 @@ FORWARD_YAW = math.pi / 2
 
 @dataclass
 class Check:
+    """One pass/fail check of a scenario with a short explanation."""
     name: str
     passed: bool
     detail: str
@@ -32,6 +33,7 @@ class Check:
 
 @dataclass
 class ScenarioResult:
+    """Measurements and checks of one scenario, with its wall-clock and simulated time."""
     name: str
     metrics: Dict[str, Any]
     checks: List[Check] = field(default_factory=list)
@@ -40,6 +42,7 @@ class ScenarioResult:
 
     @property
     def passed(self) -> bool:
+        """Whether all checks passed."""
         return all(c.passed for c in self.checks)
 
 
@@ -50,6 +53,16 @@ def _stuck_params(cfg: Mapping[str, Any]) -> StuckParams:
 
 
 class Suite:
+    """Physics validation scenarios for the wheeled robot (see the module docstring).
+
+    Args:
+        cfg: The run config (wheeled embodiment).
+        vcfg: The suite's config (scenario parameters and tolerances).
+        workdir: Directory for the simulators' generated files.
+
+    Raises:
+        ValueError: If the embodiment is not wheeled.
+    """
     def __init__(self, cfg: Mapping[str, Any], vcfg: Mapping[str, Any], workdir: Path):
         if cfg["embodiment"]["kind"] != "wheeled":
             raise ValueError("the physics suite validates the wheeled embodiment")
@@ -93,6 +106,7 @@ class Suite:
 
     # ------------------------------------------------------------------ scenarios
     def straight(self) -> ScenarioResult:
+        """Drive straight: steady speed, acceleration limit, lateral drift, no collisions."""
         c = self.v["straight"]
         env = self._env([], "straight")
         try:
@@ -122,6 +136,7 @@ class Suite:
         ], wall, c["seconds"])
 
     def spin(self) -> ScenarioResult:
+        """Turn in place: yaw rate and drift of the centre."""
         c = self.v["spin"]
         env = self._env([], "spin")
         try:
@@ -141,6 +156,7 @@ class Suite:
         ], wall, c["seconds"])
 
     def arc(self) -> ScenarioResult:
+        """Drive a full circle: radius against v / w."""
         c = self.v["arc"]
         seconds = 2 * math.pi / c["w"]
         env = self._env([], "arc")
@@ -161,6 +177,7 @@ class Suite:
         ], wall, seconds)
 
     def wall(self) -> ScenarioResult:
+        """Drive into a wall: camera depth to the wall, collision and stuck detection, no penetration."""
         c = self.v["wall"]
         d = c["distance_m"]
         wall_box = Box((0.0, 0.3, -(d + 0.05)), (2.0, 0.3, 0.05), name="wall")
@@ -187,6 +204,7 @@ class Suite:
         ], wall_t, c["seconds"])
 
     def camera_height(self) -> ScenarioResult:
+        """Camera height estimated from floor depth, and the robot resting on the floor."""
         env = self._env([], "camera")
         try:
             obs = env.reset((0.0, 0.0, 0.0), FORWARD_YAW)
@@ -215,6 +233,7 @@ class Suite:
         ])
 
     def steps(self) -> ScenarioResult:
+        """Drive at steps of increasing height: the navmesh may not claim more climb than the robot manages."""
         c = self.v["steps"]
         rows = []
         for hgt in c["heights_m"]:
@@ -243,6 +262,7 @@ class Suite:
         ])
 
     def clearance(self) -> ScenarioResult:
+        """Drive under slabs: the robot passes exactly when the slab is above its top."""
         c = self.v["clearance"]
         rows = []
         depth = 0.6
@@ -268,6 +288,7 @@ class Suite:
         ])
 
     def push(self) -> ScenarioResult:
+        """Drive into loose boxes: pushes loads lighter than the motor force, is blocked by heavier ones."""
         c = self.v["push"]
         rows = []
         hb = c["box_half_m"]
@@ -298,6 +319,7 @@ class Suite:
         ])
 
     def determinism(self) -> ScenarioResult:
+        """Repeat one drive: the final poses must be bit-identical."""
         finals = []
         for rep in range(int(self.v["determinism"]["repeats"])):
             env = self._env([Box((0.0, 0.3, -1.05), (2.0, 0.3, 0.05), name="wall")], f"det_{rep}")
@@ -314,6 +336,7 @@ class Suite:
         ])
 
     def run(self, only: Optional[Sequence[str]] = None) -> List[ScenarioResult]:
+        """Run the scenarios in a fixed order, optionally only those named in ``only``."""
         order = ["camera_height", "straight", "spin", "arc", "wall", "steps", "clearance", "push", "determinism"]
         out = []
         for name in order:
@@ -338,6 +361,7 @@ def _fit_circle(xy: np.ndarray) -> Tuple[Tuple[float, float], float]:
 
 
 def to_markdown(results: Sequence[ScenarioResult]) -> str:
+    """Markdown report: a summary table, then each scenario's measurements."""
     lines = ["# Robot physics validation", "", "| scenario | result | checks |", "|---|---|---|"]
     for r in results:
         checks = "; ".join(f"{'PASS' if c.passed else 'FAIL'} {c.name} ({c.detail})" for c in r.checks)
@@ -359,4 +383,5 @@ def to_markdown(results: Sequence[ScenarioResult]) -> str:
 
 
 def results_json(results: Sequence[ScenarioResult]) -> List[Dict[str, Any]]:
+    """Scenario results as JSON-ready dicts with their pass flag."""
     return [{**asdict(r), "passed": r.passed} for r in results]

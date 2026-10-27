@@ -30,6 +30,7 @@ N_GRID = [100, 150, 200, 300, 400, 500, 600, 800, 1000, 1500, 2000]
 
 
 def table(args) -> pd.DataFrame:
+    """Required sample size per effect size by simulated scene-clustered power, with McNemar's n for reference."""
     rows, curves = [], {}
     for delta in [float(x) for x in args.deltas.split(",")]:
         base = PowerParams(p_a=args.p_a, delta=delta, psi=max(args.psi, abs(delta)), n=max(N_GRID[0], args.k_scenes),
@@ -82,6 +83,7 @@ def table(args) -> pd.DataFrame:
 
 
 def estimate(run_a: Path, run_b: Path) -> dict:
+    """Pilot estimates of the power model (p_a, delta, psi, scene variances) from two runs' paired outcomes."""
     a = pd.read_csv(run_a / "episodes.csv")
     b = pd.read_csv(run_b / "episodes.csv")
     key = ["dataset", "split", "episode_id"]
@@ -93,6 +95,7 @@ def estimate(run_a: Path, run_b: Path) -> dict:
 
 
 def main() -> None:
+    """Command-line entry point: ``table`` or ``estimate``."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     t = sub.add_parser("table")

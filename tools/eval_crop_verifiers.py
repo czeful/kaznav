@@ -68,6 +68,7 @@ def collect(run: Path) -> pd.DataFrame:
 
 
 def rates(score: np.ndarray, y: np.ndarray) -> dict:
+    """AUROC, TPR at 10% FPR and FPR at 70% TPR of scores against binary labels."""
     pos, neg = np.sort(score[y]), np.sort(score[~y])
     if not len(pos) or not len(neg):
         return {"auroc": np.nan, "tpr@fpr0.1": np.nan, "fpr@tpr0.7": np.nan}
@@ -84,6 +85,7 @@ def _table(df: pd.DataFrame) -> str:
 
 
 def main() -> None:
+    """Command-line entry point: score the verifier crops with SigLIP 2 and write the comparison."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--runs", nargs="*", default=sorted(glob.glob(str(REPO / "runs/matrix/*/*/seed0"))))
     ap.add_argument("--out", default=str(REPO / "runs/verifier_bench/siglip0"))

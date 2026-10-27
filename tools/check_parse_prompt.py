@@ -29,6 +29,7 @@ from kznav.run.config import compose_config  # noqa: E402
 
 
 def logged_goals(runs) -> pd.DataFrame:
+    """The distinct parsed commands (multi-hypothesis goals without translation) logged in the runs' events."""
     rows = []
     for run in runs:
         for line in open(Path(run) / "events.jsonl", encoding="utf-8"):
@@ -44,6 +45,7 @@ def logged_goals(runs) -> pd.DataFrame:
 
 
 def main() -> None:
+    """Command-line entry point: re-parse the logged commands with the configured prompt and compare."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--runs", nargs="+", required=True)
     ap.add_argument("--out", required=True)

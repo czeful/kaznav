@@ -41,14 +41,17 @@ CAT_RU = {"bed": "кровать", "chair": "стул", "plant": "растени
 
 
 def video_file(ep: str) -> str:
+    """File name of an episode's video in a run directory."""
     return "video_" + ep.replace(":", "_") + ".mp4"
 
 
 def frame_file(i: int, ep: str) -> Path:
+    """Path of the still frame extracted for the ``i``-th video."""
     return HERE / "img" / f"kadr_{i + 1}_{ep.replace(':', '_')}.png"
 
 
 def extract_frames() -> None:
+    """Save the last frame of every selected video as a PNG."""
     import imageio.v2 as iio
 
     (HERE / "img").mkdir(parents=True, exist_ok=True)
@@ -59,10 +62,12 @@ def extract_frames() -> None:
 
 
 def load():
+    """Every arm's ``episodes.csv`` indexed by episode id."""
     return {k: pd.read_csv(RUNS / k / "seed0" / "episodes.csv").set_index("episode_id") for k, _, _ in ARMS}
 
 
 def copy_videos(d) -> list:
+    """Copy each selected episode's video of every arm next to the report, named by outcome."""
     rows = []
     for i, (ep, slug, cat) in enumerate(VIDEOS):
         row = {"n": i + 1, "ep": ep, "cat": cat, "kk": d["qolda_kk"].loc[ep].command_text,
@@ -79,6 +84,7 @@ def copy_videos(d) -> list:
 
 
 def mcnemar(a: pd.Series, b: pd.Series):
+    """Discordant counts and the exact two-sided McNemar p-value on the episodes both arms ran."""
     i = a.index.intersection(b.index)
     s, t = a[i].astype(bool), b[i].astype(bool)
     n10, n01 = int((s & ~t).sum()), int((~s & t).sum())
@@ -87,6 +93,7 @@ def mcnemar(a: pd.Series, b: pd.Series):
 
 # ------------------------------------------------------------------------------------------------ PDF
 def build_pdf(d, vids) -> Path:
+    """Build the report PDF and return its path."""
     from kznav.eval.failures import attribute_row
     from kznav.eval.stats import wilson_ci
     from PIL import Image as PILImage
@@ -472,6 +479,7 @@ def build_pdf(d, vids) -> Path:
 
 
 def main() -> None:
+    """Command-line entry point: ``--frames`` extracts the frames; otherwise copy the videos and build the PDF."""
     if "--frames" in sys.argv:
         extract_frames()
         return

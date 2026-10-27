@@ -27,6 +27,7 @@ VOICES = {"kk": "facebook/mms-tts-kaz", "kk_ru": "facebook/mms-tts-kaz", "en": "
 
 
 def main() -> None:
+    """Command-line entry point: synthesise every usable command with MMS-TTS and write the WAV files."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--speaker", default="tts_mms")
     ap.add_argument("--root", default="data/speech")

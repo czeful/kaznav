@@ -33,6 +33,7 @@ BOX_THRESHOLD, TEXT_THRESHOLD = 0.35, 0.25
 
 # ---------------------------------------------------------------------------- frames (habitat_env)
 def make_frames(out: Path, per_object: int, n_random: int, seed: int) -> None:
+    """Render frames of placed debug objects (from view points) and random frames, with their queries."""
     sys.path.insert(0, str(REPO))
     from PIL import Image
 
@@ -81,11 +82,13 @@ def make_frames(out: Path, per_object: int, n_random: int, seed: int) -> None:
 
 # ---------------------------------------------------------------------------- detection
 def image_path(d: Path, item: dict) -> Path:
+    """Absolute path of a manifest item's image."""
     p = Path(item["image"])
     return p if p.is_absolute() else d / p
 
 
 def detect_hf(d: Path, items: list) -> dict:
+    """Detections of the bench's HF GroundingDINO with the D-009 settings."""
     sys.path.insert(0, str(REPO))
     from PIL import Image
 
@@ -105,6 +108,7 @@ def detect_hf(d: Path, items: list) -> dict:
 
 
 def detect_original(d: Path, items: list) -> dict:
+    """Detections of the original GroundingDINO implementation with the same thresholds and weights."""
     import torch
     from groundingdino.util.inference import load_image, load_model, predict
 
@@ -128,6 +132,7 @@ def detect_original(d: Path, items: list) -> dict:
 
 # ---------------------------------------------------------------------------- comparison
 def iou(a, b) -> float:
+    """Intersection over union of two ``(x1, y1, x2, y2)`` boxes."""
     ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
     iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
     inter = ix * iy
@@ -150,6 +155,7 @@ def match(a: list, b: list, min_iou: float = 0.5) -> list:
 
 
 def compare(d: Path) -> str:
+    """Match the two implementations' boxes per image and tabulate agreement as markdown."""
     items = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
     hf = json.loads((d / "detections_hf.json").read_text(encoding="utf-8"))
     org = json.loads((d / "detections_original.json").read_text(encoding="utf-8"))
@@ -191,6 +197,7 @@ def compare(d: Path) -> str:
 
 
 def main() -> None:
+    """Command-line entry point: ``frames``, ``detect`` or ``compare``."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     f = sub.add_parser("frames")

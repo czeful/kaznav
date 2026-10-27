@@ -41,6 +41,7 @@ METRICS = ["success", "spl", "soft_spl", "dts", "collisions", "stuck_time_s", "p
 
 
 def main() -> None:
+    """Command-line entry point: run (or resume) one benchmark run."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--lang", default="none", choices=["none", "kk", "kk_ru", "en"])
     ap.add_argument("--no-verify", action="store_true", help="with --lang: stop without VLM verification")

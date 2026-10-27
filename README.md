@@ -1,218 +1,237 @@
-# kznav — стенд zero-shot ObjectNav для низкого колёсного робота со сменными VLM
+# kznav — zero-shot object navigation for a household robot commanded in Kazakh
 
-Колёсный робот формата робота-пылесоса в Habitat ищет предмет по команде на казахском,
-смешанном казахско-русском или английском языке. Языковая часть работает через сменный
-VLM-бэкенд (Qolda, Qwen3-VL, ...). На выходе — стандартные метрики ObjectNav (SR, SPL,
-SoftSPL, DTS) с доверительными интервалами и парными сравнениями моделей.
+kznav is a research bench for **zero-shot object-goal navigation (ObjectNav)** in which a household robot receives a
+natural-language command in **Kazakh**, **mixed Kazakh–Russian** or **English** — e.g. *«Төсек қайда? Шаршап
+тұрмын»* ("Where is the bed? I'm tired") — and must find the object in an unseen home and stop next to it. The robot
+runs in [Habitat-Sim](https://github.com/facebookresearch/habitat-sim) on
+[HM3D](https://aihabitat.org/datasets/hm3d/) scans of real apartments. Its language side is a swappable
+vision-language model (VLM), so a native Kazakh model can be compared with general multilingual models of the same
+size under identical conditions.
 
-- Постановка задачи: [docs/BRIEF.md](docs/BRIEF.md)
-- Решения, влияющие на числа: [docs/decisions.md](docs/decisions.md)
-- Определения метрик: [docs/measurement_protocol.md](docs/measurement_protocol.md)
-- Что чинили при установке: [INSTALL_LOG.md](INSTALL_LOG.md)
+**Research question.** *Where and why does zero-shot object-goal navigation fail when a household robot is commanded
+in Kazakh, and does a native Kazakh vision-language model close the gap?*
 
-## Состояние (2026-10-05)
-
-| Этап | Статус |
+| | hypothesis |
 |---|---|
-| 2. Каркас: интерфейсы, конфиги, Mock/Replay, метрики с тестами | **готов** |
-| 2′. Окружение: рендер Habitat в WSL2 | **работает** (Mesa → D3D12 → RTX 5070) |
-| 2′. Видеопамять (D-006) | **замерено**: Qolda bf16 + Habitat + GroundingDINO + SigLIP2 — пик 11.8 из 12.2 GB, bf16 остаётся |
-| 3. Симуляция: робот, движение, сенсоры, столкновения, застревание, обрывы | **готов на тестовых сценах**; на HM3D не проверено (нет данных) |
-| 3. Наклон камеры | ждёт HM3D |
-| 4. Карта занятости, фронтиры, планировщик, политика ObjectNav, раннер эпизода | **работает** на отладочной сцене; на HM3D не запускалось |
-| 4. Детектор GroundingDINO (HF), карта ценности SigLIP2 (VLFM-стиль) | **работает**; HF-реализация совпадает с оригиналом (89/89 рамок, D-009) |
-| 5. Qolda: свой сервер, разбор команды → гипотезы, верификация перед остановкой, байесовские веса | **работает в цикле навигации** (D-028); калибровка на dev — ждёт HM3D |
-| 5. Языковая часть на данных пилота (30 команд, 32 кропа) | **замерено** (D-029) |
-| 5. Абляции цели: одна гипотеза (D-038), перевод NLLB-200 (D-039) | **замерено** на отладочной сцене и 30 командах пилота: перевод теряет культурные предметы (1/15 против 11/15 у Qolda), польза нескольких гипотез пока не показана |
-| 6. Оценка, отчёты | метрики, CSV эпизодов, парные сравнения; раннер HM3D/OVON (D-041), калибровка по dev (D-042), таблицы статьи (D-044) **готовы, проверены без HM3D** — ждут данных |
-| 7. Qwen3-VL-4B, матричный прогон | **работает** (свой сервер, D-040): на казахском Qwen 2/20 против 6/20 у Qolda, на английском 9/20 против 6/20; на культурных словах пилота 3/15 против 11/15 |
-| 8. К статье: этап провала (D-045), метка остановки по содержимому и сбои эпизодов (D-046), статистика по сценам (D-047), банк естественных команд (D-048), мощность (D-049), матрица плеч (D-050), шумы и одометрия (D-051), [план анализа](docs/analysis_plan.md) | **готово, проверено без HM3D**; план — черновик до заморозки; команды пишут носители языка |
-| 9. HM3D: данные v0.1, проверка целей, доступность эпизодов, кинематический робот (D-052, D-053) | **подключено**: val (20 сцен, 2000 эп.), train качается; дымовой прогон на val_mini с оракулом - кинематический робот 10/11 |
+| **H1** | The loss caused by Kazakh commands (vs English) arises at the language→vision interface — query generation, detection, verification — not in navigation. |
+| **H2** | The Kazakh–English gap is larger for culturally specific objects (қазан, сандық, текемет, …) than for matched universal objects, and translate-first pipelines widen it. |
+| **H3** | A native Kazakh VLM narrows the Kazakh gap compared with a general VLM of the same size, and is not better than it in English. |
+| **H4** | VLM verification before stopping raises success by preventing false stops; it needs calibration. |
 
-Тесты: `python -m pytest` (без видеокарты и без сервера модели; интеграционные с Habitat пропускаются без него).
-Проверки физики — [docs/validation/](docs/validation/). Решения и замеры — [docs/decisions.md](docs/decisions.md).
+The pre-registered analysis plan is [`docs/analysis_plan.md`](docs/analysis_plan.md).
 
-Полный цикл с казахской командой работает на отладочной сцене:
+## Status
 
-- команда («Банан тұрған жерге бар.») → Qolda → английские гипотезы с весами;
-- гипотезы → GroundingDINO, по ним же SigLIP2 строит карту ценности;
-- кандидат → кроп → Qolda «иә/жоқ» с логпробами → байесовское обновление → остановка.
+- **All numbers so far come from development data** (HM3D *train* scenes). The test split (HM3D ObjectNav v1 *val*)
+  has not been touched; it will be run once the analysis plan is frozen (git tag `analysis-plan-v1`).
+- The analysis plan is a **draft** (v2); its open decisions are listed in §14 of the plan.
+- Kazakh test commands are being written and reviewed by native speakers; the Kazakh lines of the prompts and the
+  lexicon still await native review.
 
-Отладочная матрица: 7 плеч × 20 одинаковых эпизодов, `runs/compare/matrix_wheeled_v2`, D-035.
+## How the robot works
 
-- Без проверки GroundingDINO останавливается у чужого предмета в 19 из 20 эпизодов.
-- С проверкой Qolda — 1 ложная остановка на 40 эпизодов; SR 30 % (kk) и 20 % (kk-ru) против 5 %.
-- Полный повтор плеч воспроизводит матрицу эпизод в эпизод (D-036).
-
-Числа отладочные, не результаты статьи: одна сцена, верификатор без калибровки,
-команды — черновик без проверки носителем.
-
-## Структура
+One episode, the same for every model and both robots:
 
 ```
-kznav/
-  eval/        метрики и статистика (без симулятора): metrics, stats, calibration,
-               classification, failures, robot (столкновения/застревание), records, aggregate
-  language/    VLMBackend + реестр; backends/: openai_compat, qolda, qwen_vl, mock, replay;
-               prompts (версионированные файлы), schemas, logprobs, lexicon
-  perception/  camera, occupancy (карта log-odds под габариты embodiment), frontiers, objects (локализация
-               детекций), oracle (абляция), интерфейсы Detector / Segmenter / ValueEncoder + реестры
-  policy/      belief (байес по гипотезам), calibration (калибраторы, порог, защита от утечки dev→test),
-               controller (pure pursuit), planner (Дейкстра по своей карте), objectnav (политика)
-  run/         episode (исполнитель + раннер эпизода), логирование, манифест, сборка конфига
-  report/      video (кадр из панелей + карта сверху, запись MP4)
-  sim/         env (обёртка Habitat для обоих embodiment), robot (URDF-робот на моторах),
-               urdf (генерация из конфига), diff_drive, frames, arena, noise,
-               validation (физические проверки), mesh_drive (езда по сканам, D-003),
-               episodes (точки обзора, отладочные сцены), mock_env (аналитический симулятор для CI)
-configs/       Hydra: backend/ embodiment/ dataset/ policy/ eval/; validation/ — параметры проверок
-prompts/       <набор>/<задача>/v<N>.yaml — хеш каждого промпта пишется в каждый вызов
-lexicon/       синонимы категорий по языкам (hm3d_objectnav.yaml — черновик, нужна проверка носителем)
-tests/         pytest; tests/data/pilot_verification.jsonl — сырые данные пилота для сверки ECE
-tools/         wsl.sh (запуск в habitat_env с настройками рендера), check_render.py,
-               validate_robot.py, mesh_drive_test.py, compare_views.py, demo_drive.py
-env/           точный состав habitat_env (conda + pip freeze)
-qolda check/   пилот (отдельный git-репозиторий, не входит в этот)
+command (kk / kk-ru / en)
+   │
+   ▼
+[parse]      VLM, once per episode (prompt parse_goal v4):
+             target, its English name (target_en), 3–5 weighted English visual hypotheses, likely rooms
+   ▼
+[look]       360° turn on the spot
+   ▼
+┌─► [map]        depth → top-down occupancy grid; frontiers between explored free space and the unknown
+│   [detect]     MM-GroundingDINO (base, threshold 0.50) on every hypothesis separately
+│   [segment]    SAM 2.1 masks → 3-D points → object candidates on the map
+│   [fuse]       multi-frame confidence fusion (ApexNav-style); a candidate is approached at ≥ 0.45
+│   [value]      SigLIP 2 similarity of the view to the hypotheses, projected on the map → frontier choice
+│   [move]       grid planner on the robot's own map → pure-pursuit controller (robot-vacuum) or discrete steps
+│        │
+│        ▼  at a candidate ("last metre")
+│   [verify]     the same VLM: "Is the main object in the image a "<target_en>"?"
+│                P(yes) from first-token log-probabilities → Platt calibration (fitted on dev) → threshold
+│        ├─ above the threshold → drive to where the object is in view (≤ 0.9 m) → STOP
+│        ├─ below 0.25          → the candidate is dropped
+└────────┴─ in between          → move closer and ask again (at most 3 times)
 ```
 
-## Команды
+**Success** follows habitat-lab: the robot itself calls *stop* within 0.1 m (geodesic) of a goal view point.
 
-Все команды выполняются в WSL, окружение `habitat_env`. Скрипт `tools/wsl.sh`
-активирует его и выставляет переменные рендера. Из Git Bash в Windows:
+### Robots (embodiments)
+
+| | robot-vacuum — main table (b) | standard Habitat agent — table (a) |
+|---|---|---|
+| camera | RGB-D 640×480, **0.15 m** high, 20° up, HFOV 69° | RGB-D 640×480, **0.88 m** high, HFOV 79° |
+| motion | wheeled, kinematic on its own navmesh, recovery when blocked | 0.25 m steps, 30° turns |
+| step budget | 800 decisions | 500 steps (standard) |
+| goal view points | recomputed for its camera | from the dataset |
+
+The standard agent makes the results comparable with the literature (e.g. VLFM); the robot-vacuum is the realistic,
+harder case.
+
+### Models
+
+| role | model | notes |
+|---|---|---|
+| VLM, native Kazakh | [Qolda-4B](https://huggingface.co/issai/Qolda) (ISSAI) | InternViT + Qwen3-4B; Apache 2.0 |
+| VLM, general | [Qwen3-VL-4B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct) | Apache 2.0 |
+| VLM, general, another family | [Gemma 3 4B](https://huggingface.co/google/gemma-3-4b-it) | Gemma Terms of Use; added in D-083 |
+| speech (spoken commands) | [Qolda-AVL-5B](https://huggingface.co/issai/Qolda-AVL-5B) (ISSAI) | audio-vision-language; Apache 2.0 |
+| translator (baseline) | [NLLB-200 distilled 600M](https://huggingface.co/facebook/nllb-200-distilled-600M) | CC-BY-NC 4.0 |
+| open-vocabulary detector | [MM-GroundingDINO base](https://huggingface.co/openmmlab-community/mm_grounding_dino_base_o365v1_goldg_v3det) | |
+| segmenter | [SAM 2.1 tiny](https://huggingface.co/facebook/sam2.1-hiera-tiny) | |
+| value map, light verifier | [SigLIP 2 base](https://huggingface.co/google/siglip2-base-patch16-224) | |
+
+All VLMs run locally in bf16 on one 12 GB GPU, one at a time, behind the same OpenAI-compatible server API
+(`servers/`). Every model call — request, raw answer, retries and input image — is logged, so any run can be
+recomputed without the model (`backend=replay`).
+
+## Repository layout
+
+```
+kznav/                 the package
+  language/            VLM backend interface and registry; backends: qolda, qwen_vl, openai_compat (Gemma),
+                       qolda_avl (speech), mock, replay, parse_replay; prompts, schemas, lexicon, commands, speech
+  perception/          occupancy map, frontiers, object candidates, detector / segmenter / value-encoder interfaces
+  policy/              ObjectNav policy, belief over hypotheses, verify-before-stop, calibration, planner, controller
+  sim/                 Habitat wrapper for both embodiments, robot model, episodes and view points, noise, validation
+  run/                 episode runner, benchmark runner, logging, manifests, config composition
+  eval/                metrics, failure stages, statistics (paired and scene-clustered), paper tables
+  report/              figures and videos
+configs/               Hydra config groups: backend, embodiment, dataset, detector, segmenter, policy, goal, eval, ...
+prompts/               versioned prompt files; the SHA-256 of each prompt is recorded with every model call
+lexicon/               accepted object names per language (draft, awaiting native review)
+commands/              natural command bank (native-written; dev and test), recording sheets for spoken commands
+calib/                 verifier calibration artifacts fitted on dev runs (with their dev episode ids)
+splits/                frozen episode subsets (dev sets; test primary 547 / secondary 297; table (a) 300)
+paper/matrices/        experiment matrices (arms × seeds) run by tools/run_matrix.py
+servers/               local OpenAI-compatible model servers (Qolda, Qwen3-VL, Gemma)
+tools/                 command-line entry points: runs, calibration, splits, analysis, diagnostics, downloads
+tests/                 pytest suite (no GPU or model server needed for the core)
+docs/                  decisions log, status, analysis plan, measurement protocol, code review, validation reports
+reports/               generators of the progress reports and their outputs
+env/                   exact composition of the Habitat environment (conda export, pip freeze)
+```
+
+## Installation
+
+The bench was developed on Windows 11 + WSL2 (Ubuntu 22.04) with an RTX 5070 (12 GB). Three Python environments
+are used:
+
+| environment | contents | used for |
+|---|---|---|
+| conda `habitat_env` (Python 3.9) | habitat-sim 0.2.4 (with Bullet, headless), habitat-lab 0.2.4, torch, transformers 4.57.6, the perception models | the bench: simulation, perception, runs, tests |
+| venv `~/qolda-env` (Python 3.13) | torch, transformers 4.57.6, FastAPI | the model servers (Qolda, Qwen3-VL, Gemma) |
+| venv `~/avl-env` (Python 3.13) | torch, transformers 5.2 | Qolda-AVL (its remote code needs transformers 5) |
+
+The exact `habitat_env` is in [`env/`](env/); installation issues and their fixes are in
+[`INSTALL_LOG.md`](INSTALL_LOG.md) (in Russian). `tools/wsl.sh` activates `habitat_env` and sets the rendering
+variables (under WSL2 Habitat renders through Mesa D3D12; there is no NVIDIA EGL).
+
+**Data.** HM3D v0.1 scenes with semantics and the ObjectNav v1 episodes are downloaded with
+`tools/download_hm3d.sh` (`minival`, `val`, `train`) into `$KZNAV_DATA_ROOT` (default `~/kznav_data`). The download
+needs a Matterport API token, read from the environment or `~/.config/kznav/matterport.env`; it is never stored in
+the repository. Gemma is gated on Hugging Face: accept its license and log in (`huggingface-cli login`) before the
+first server start.
+
+## Quick start
+
+All commands run inside WSL from the repository root. From Windows Git Bash, prefix them with
+`MSYS_NO_PATHCONV=1 wsl -d Ubuntu-22.04 --cd <repo path in WSL> --`.
 
 ```bash
-MSYS_NO_PATHCONV=1 wsl -d Ubuntu-22.04 --cd /mnt/c/Users/Bieber/Desktop/robot_simulation -- bash tools/wsl.sh <команда>
-```
+# tests: no GPU and no model server needed (server tests run in ~/qolda-env)
+bash tools/wsl.sh python -m pytest -q
 
-Внутри WSL, из корня проекта:
-
-```bash
-# тесты (без видеокарты и без сервера модели, ~10 с)
-bash tools/wsl.sh python -m pytest
-
-# проверка рендера Habitat: строка "Renderer:" должна называть NVIDIA
+# check that Habitat renders on the NVIDIA GPU
 bash tools/wsl.sh python tools/check_render.py --out /tmp/render_check.png
 
-# физика робота на арене из примитивов (9 сценариев, ~30 с) -> runs/validation/<время>/report.md
-bash tools/wsl.sh python tools/validate_robot.py
-
-# езда робота по собственному navmesh на сканах (D-003, ~3 мин) -> runs/mesh_drive/<время>/summary.md
-# нужны тестовые сцены: python -m habitat_sim.utils.datasets_download --uids habitat_test_scenes --data-path ~/kznav_data
-bash tools/wsl.sh python tools/mesh_drive_test.py
-
-# демо-видео: робот проезжает маршруты по сцене (камера, глубина, карта сверху) -> runs/demo/<время>/demo.mp4
-# это НЕ эпизод ObjectNav: робот едет по своему navmesh, без восприятия и без модели
-bash tools/wsl.sh python tools/demo_drive.py --routes 3
-
-# отладочные эпизоды ObjectNav (apartment_1 + 4 объекта YCB, по умолчанию оракульный детектор) -> runs/debug/<время>/
-# (episodes.csv, summary.md, events.jsonl, видео первых эпизодов); role: debug — не результаты статьи
+# debug episodes on a test scene with placed objects (oracle detector by default; not paper results)
 bash tools/wsl.sh python tools/run_debug_episodes.py --videos 2
-bash tools/wsl.sh python tools/run_debug_episodes.py embodiment=habitat_agent
 
-# кадр робота (0.15 м) рядом с кадром агента Habitat (0.88 м) из тех же точек
-bash tools/wsl.sh python tools/compare_views.py --scene ~/kznav_data/scene_datasets/habitat-test-scenes/apartment_1.glb --out views.png
+# a model server (one at a time on a 12 GB GPU); run_matrix starts and stops them by itself
+bash tools/start_qolda.sh      # port 23333;  tools/start_qwen.sh: 23334;  tools/start_gemma.sh: 23335
 
-# сервер Qolda (bf16, порт 23333, 4 тайла): servers/qolda_server.py в ~/qolda-env, в фоне
-bash tools/start_qolda.sh            # или tools/restart_qolda.sh; лог runs/servers/qolda.log
-# сервер Qwen3-VL-4B (bf16, порт 23334, тот же бюджет пикселей, D-040); сервер Qolda перед этим остановить
-bash tools/start_qwen.sh             # лог runs/servers/qwen.log; затем backend=qwen3vl_4b в любой команде
-curl http://localhost:23333/kznav/stats
-
-# языковая часть на данных пилота: разбор 30 команд / верификация 32 кропов (1, 4, 12 тайлов)
-bash tools/wsl.sh python tools/eval_language.py parse
-bash tools/wsl.sh python tools/eval_language.py verify --tiles 1,4,12
-# те же 30 команд через абляции цели: multi, top1, mt_word, mt_command (D-038, D-039)
-bash tools/wsl.sh bash tools/run_language_ablations.sh
-
-# эпизоды с казахской командой: разбор Qolda -> GroundingDINO + SigLIP2 -> верификация Qolda
-bash tools/wsl.sh python tools/run_debug_episodes.py --lang kk detector=mm_grounding_dino_base value_encoder=siglip2_base
-#   --lang kk_ru (смешанные), --no-verify (без верификации); видео с командой, гипотезами и ответами модели
-
-# то же, с логом памяти GPU (nvidia-smi раз в секунду + пик сервера)
-bash tools/wsl.sh bash tools/with_gpu_log.sh runs/servers/gpu.csv python tools/run_debug_episodes.py --lang kk ...
-
-# матрица плеч на одних и тех же эпизодах + парные сравнения -> runs/compare/matrix_<время>/comparison.md
-bash tools/wsl.sh bash tools/run_debug_matrix.sh
-python tools/compare_runs.py --ref gd_value gd_value=runs/debug/<a> qolda_kk=runs/debug/<b>
-
-# --- HM3D / OVON (D-041, D-052; данные - в $KZNAV_DATA_ROOT, токен Matterport - в ~/.config/kznav/matterport.env) ---
-# сцены HM3D v0.1 + эпизоды ObjectNav v1; train - потоком и только 80 сцен с эпизодами (весь архив 26 GB не нужен)
-bash tools/wsl.sh bash tools/download_hm3d.sh val
-bash tools/wsl.sh bash tools/download_hm3d_subset.sh train
-# цели против разметки сцен и какие эпизоды может пройти робот (episodes.csv для make_split --runnable)
-bash tools/wsl.sh python tools/check_hm3d.py --dataset hm3d_objectnav_v1_val --per-scene 0 --embodiments wheeled_vacuum_kinematic --out runs/hm3d_check/val_kinematic
-bash tools/wsl.sh python tools/diagnose_reachability.py --dataset hm3d_objectnav_v1_valmini --out runs/hm3d_check/reach
-# дымовой прогон на val_mini (сцены val, роль smoke: не результат, ничего не настраивать)
-bash tools/wsl.sh python tools/run_eval.py --lang none --out runs/smoke/x dataset=hm3d_objectnav_v1_valmini embodiment=wheeled_vacuum_kinematic detector=oracle_semantic
-# колёсный робот в основной таблице - кинематика на своём navmesh (D-053): embodiment=wheeled_vacuum_kinematic;
-# физический робот (embodiment=wheeled_vacuum) - для исследования устойчивости и валидации физики
-# фиксированные выборки: dev из train-сцен, тест - сбалансированная подвыборка val (50 вложена в 100)
-python tools/make_split.py dev  --dataset hm3d_objectnav_v1_train --scenes 8 --per-category 10 --out splits/hm3d_v1_dev.txt
-python tools/make_split.py test --dataset hm3d_objectnav_v1_val --per-category 100 --out splits/hm3d_v1_test_primary.txt
-python tools/make_split.py test --dataset hm3d_objectnav_v1_val --per-category 50 --out splits/hm3d_v1_test_secondary.txt
-# таблица (а), стандартный агент: простая случайная выборка из всего val, без стратификации (D-064)
-python tools/make_split.py test --dataset hm3d_objectnav_v1_val --random 300 --out splits/hm3d_v1_table_a.txt
-# естественные команды (D-048): таблица для авторов -> импорт -> проверка (инструкция: docs/command_authoring.md)
-python tools/commands.py sheet --lexicon lexicon/hm3d_objectnav.yaml --authors A01,A02,A03 --out commands/natural/hm3d_objectnav_v1_sheet.csv
-python tools/commands.py import commands/natural/hm3d_objectnav_v1_sheet.csv --dataset hm3d_objectnav_v1 --lexicon lexicon/hm3d_objectnav.yaml --out commands/natural/hm3d_objectnav_v1.yaml
-python tools/commands.py validate commands/natural/hm3d_objectnav_v1.yaml --min-test 10
-# объём выборки до тестовых прогонов (D-049): по отладочным парам плеч -> таблица мощности
-python tools/power_analysis.py estimate runs/debug/<плечо a> runs/debug/<плечо b>
-python tools/power_analysis.py table --p-a 0.30 --psi 0.30 --m 5 --out paper/power
-# прогон: любой робот / модель / язык / режим цели; --resume продолжает папку прогона
-# восприятие по умолчанию - стек D-060 (MM-GroundingDINO base 0.50 + SAM 2.1 + слияние 0.45, D-064);
-# абляции: detector=none|oracle_semantic|grounding_dino_tiny, segmenter=box, perception.detection.fusion.enabled=false
-bash tools/wsl.sh python tools/run_eval.py --lang kk embodiment=wheeled_vacuum_kinematic backend=qolda value_encoder=siglip2_base run.episodes.subset_file=splits/hm3d_v1_dev.txt dataset=hm3d_objectnav_v1_train policy.stop.calibration_file=calib/qolda_dev.json
-# калибровка проверки и порог - только по dev-прогонам (D-042)
-python tools/fit_calibration.py runs/eval/<dev прогон> --out calib/qolda_dev.json
-# наклон камеры (D-004) и бюджет эпизода (D-005) на dev
-bash tools/wsl.sh python tools/dev_studies.py pitch --pitches -15,-5,0,10,20 --out runs/dev/pitch dataset=hm3d_objectnav_v1_train run.episodes.subset_file=splits/hm3d_v1_dev.txt
-python tools/dev_studies.py budget runs/eval/<dev прогон с большим лимитом> --out runs/dev/budget
-# вся матрица статьи (D-050): план, прогон (серверы поднимаются по очереди), описание для таблиц
-bash tools/wsl.sh python tools/run_matrix.py plan paper/matrices/hm3d_v1_main.yaml
-bash tools/wsl.sh python tools/run_matrix.py run  paper/matrices/hm3d_v1_main.yaml
-bash tools/wsl.sh python tools/run_matrix.py spec paper/matrices/hm3d_v1_main.yaml            # + --part secondary
-# таблицы и графики статьи по YAML-описанию плеч (D-044, D-047): контрасты по сценам, этапы провала,
-# разложение разности SR по этапам (H1); пример на отладочных прогонах
-python tools/make_paper_tables.py paper/specs/debug_ycb_example.yaml --out runs/paper_check
-# сверка GroundingDINO: HF против оригинала (D-009)
-bash tools/wsl.sh python tools/gdino_crosscheck.py frames --out runs/gdino_check
-
-# абляции цели на эпизодах матрицы: одна гипотеза, NLLB-слово (с проверкой и без), NLLB-команда
-# -> runs/ablation_arms_<время>.txt; NLLB-200 на CPU, первый запуск скачивает 2.5 GB
-bash tools/wsl.sh bash tools/run_ablation_arms.sh
-
-# Qwen3-VL-4B вместо Qolda: языковые проверки пилота + плечи kk / kk-ru / en / kk без проверки
-bash tools/wsl.sh bash tools/run_qwen_arms.sh
-
-# видео всех эпизодов плеч (полный повтор = проверка воспроизводимости), ролик и страница результатов
-bash tools/wsl.sh bash tools/run_video_arms.sh
-bash tools/wsl.sh python tools/make_demo_reel.py --out runs/demo/reel.mp4 <video.mp4>="подпись|вторая строка" ...
-python tools/make_results_page.py --compare runs/compare/<dir> --parse runs/language/parse_<t>     --verify runs/language/verify_<t> --out runs/page/index.html --video reel.mp4 --poster poster.png
+# an experiment matrix: show the cells and their state, then run (resumes unfinished cells)
+bash tools/wsl.sh python tools/run_matrix.py plan paper/matrices/dev_confirm.yaml
+bash tools/wsl.sh python tools/run_matrix.py run  paper/matrices/dev_confirm.yaml --only qolda_kk
 ```
 
-### Выбор компонентов
+Every component is chosen by one Hydra override, e.g. `backend=qolda | qwen3vl_4b | gemma3_4b | mock | replay`,
+`embodiment=wheeled_vacuum_kinematic | habitat_agent`, `goal=multi | top1 | mt_word | mt_command`,
+`policy.verification.backend=vlm | siglip_zero`. A new model is one file in `configs/backend/` plus, if needed, a
+registered backend class; the navigation code does not change.
 
-Всё выбирается конфигом, одной строкой переопределения Hydra:
+## Reproducing the experiments
 
-```bash
-backend=qolda | qwen3vl_4b | mock | replay | qolda_think_control
-embodiment=wheeled_vacuum | habitat_agent
-dataset=hm3d_objectnav_v1_val | hm3d_ovon_val_unseen | custom_room
-goal=multi | top1 | mt_word | mt_command      # что разбор цели отдаёт конвейеру (D-038, D-039)
-```
+- **Matrices.** Each experiment is a YAML file in `paper/matrices/` (arms × seeds, common overrides, model server per
+  arm). `tools/run_matrix.py run` executes the cells with `tools/run_eval.py`, writes
+  `runs/matrix/<matrix>/<arm>/seed<k>/{episodes.csv, events.jsonl, vlm_calls.jsonl, summary.md, manifest.json}` and
+  resumes from the last finished episode after an interruption.
+- **Tables.** `tools/run_matrix.py spec` writes a table spec; `tools/make_paper_tables.py` produces the tables and
+  figures (paired contrasts, failure stages, the H1 gap decomposition, sensitivity analyses).
+- **Replay.** `backend=replay backend.replay.sources=[<run>/vlm_calls.jsonl]` recomputes navigation and metrics from
+  recorded model calls. `++backend.parse_replay` replays only the command parse while verification stays live
+  (spoken commands, D-078).
+- **Calibration.** `tools/fit_calibration.py` fits the verifier calibration and stop threshold on dev runs; the runner
+  refuses an artifact that shares episodes with the evaluated set.
+- **Decisions.** Every choice that affects a number — with the rule written *before* the run and the result after it
+  — is an entry D-001 … D-084 in [`docs/decisions.md`](docs/decisions.md) (in Russian).
 
-Новая модель добавляется так: файл `configs/backend/<name>.yaml` плюс либо подкласс
-`OpenAICompatBackend` с `@BACKENDS.register("<name>")`, либо внешний класс через
-`class_path: pkg.module:Class`. Навигационный код не меняется.
+## Measurement
 
-## Жёсткие правила (из пилота и брифа)
+- **Metrics:** success rate (SR), SPL, SoftSPL, distance to success; definitions in
+  [`docs/measurement_protocol.md`](docs/measurement_protocol.md).
+- **Failure stages:** every failed episode gets exactly one stage — did not understand the command, goal never seen,
+  not detected, verifier rejected the goal, false stop, not reached, stuck, stopped too far — grouped into
+  language / grounding / navigation (`kznav/eval/failures.py`).
+- **Statistics:** all arms run the same episodes; the scene is the unit of inference (scene-cluster bootstrap CIs,
+  scene sign-flip tests, Holm correction over the primary contrasts), with exact McNemar tests as a secondary check.
 
-- Qolda — только No-Think. `enable_thinking: false` явно в каждом запросе. Без этого
-  или с `true` бэкенд не создаётся, кроме конфига `qolda_think_control`.
-- Каждый вызов модели (запрос, сырой ответ, все повторы, входное изображение)
-  пишется в `vlm_calls.jsonl`. `backend=replay` пересчитывает всё без модели.
-- Пороги и калибровка подбираются только на dev. Артефакт калибровки хранит id
-  dev-эпизодов, и пересечение с оцениваемыми эпизодами — ошибка.
-- Собственная комната (`dataset=custom_room`, `role: debug`) не входит в основные
-  таблицы.
+## Results so far (development data only)
+
+Fresh dev scenes not used for any tuning; 95% confidence intervals are about ±8–11 points. These are **not** test
+results.
+
+| setting | Qolda, kk | Qwen3-VL, kk | Gemma 3, kk | no VLM (VLFM-style) | ideal detector |
+|---|---|---|---|---|---|
+| standard agent, 150 episodes | **44.0%** | 40.7% (en) | 38.7% | 30.0% | 71.3% |
+| robot-vacuum, 72 episodes (dev3) | **23.6%** | 15.3% | 19.4% | 20.8% | 75.0% |
+
+- On the standard agent the method is significantly better than the no-VLM baseline (Qolda kk vs baseline: 38 vs 17
+  discordant episodes, exact McNemar p = 0.006).
+- Command understanding (robot-vacuum, 72 fresh episodes): episodes lost because the Kazakh command was not
+  understood — Qolda 0, Gemma 8, Qwen 11, translate-first NLLB → Qwen 18.
+- On the robot-vacuum the main loss is false stops at similar-looking objects seen from 15 cm; better verification
+  precision is the main open problem.
+- Spoken Kazakh commands (pilot, one speaker): Qolda-AVL transcription followed by Qolda parsing reached 40.7% on the
+  standard agent against 44.0% for typed commands (difference not significant).
+
+The full history, including the changes that did not survive confirmation on fresh scenes, is in
+[`docs/decisions.md`](docs/decisions.md) and [`docs/STATUS.md`](docs/STATUS.md).
+
+## Documentation
+
+| file | contents |
+|---|---|
+| [`docs/analysis_plan.md`](docs/analysis_plan.md) | pre-registered analysis plan (draft v2) |
+| [`docs/code_review_2026-10.md`](docs/code_review_2026-10.md) | code review: method, findings, verification |
+| [`docs/measurement_protocol.md`](docs/measurement_protocol.md) | metric definitions (in Russian) |
+| [`docs/decisions.md`](docs/decisions.md) | decisions log D-001 … D-084 with rules and results (in Russian) |
+| [`docs/STATUS.md`](docs/STATUS.md) | current state and next steps (in Russian) |
+| [`docs/command_authoring.md`](docs/command_authoring.md), [`docs/cultural_data_collection.md`](docs/cultural_data_collection.md) | guides for native-speaker command authors and for the cultural-object data (in Russian) |
+| [`docs/validation/`](docs/validation/) | robot physics and navigation validation reports |
+
+## Limitations
+
+- Simulation only; the robot-vacuum is a model of a real device, not a hardware experiment.
+- All current numbers are on development data with 72–150 episodes per arm.
+- The Kazakh prompt lines and lexicon are drafts until reviewed by native speakers.
+- Spoken-command results come from one speaker and synthetic voices; they are pilots.
+
+## License
+
+No license has been chosen yet; all rights reserved by the author until publication. Third-party models and
+datasets keep their own terms (HM3D: Matterport's academic terms; NLLB-200: CC-BY-NC 4.0; Gemma: Gemma Terms of
+Use).

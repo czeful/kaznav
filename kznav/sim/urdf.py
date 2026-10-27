@@ -60,6 +60,11 @@ class RobotGeometry:
 
     @classmethod
     def from_config(cls, emb: Mapping[str, Any]) -> "RobotGeometry":
+        """Derive the geometry from the embodiment config and check it.
+
+        Raises:
+            ValueError: If the masses or the geometry are inconsistent.
+        """
         body, drive, cas = emb["body"], emb["drive"], emb["drive"]["casters"]
         mount = emb["sensors"]["rgbd"]["mount"]
         wheels = 2 * float(drive["wheel_mass_kg"]) + 2 * float(cas["mass_kg"])
@@ -82,6 +87,11 @@ class RobotGeometry:
         return g
 
     def check(self) -> None:
+        """Check that the parts fit the chassis footprint and the clearance is below the body height.
+
+        Raises:
+            ValueError: If a check fails.
+        """
         if self.clearance >= self.body_height:
             raise ValueError("ground clearance must be below the body height")
         if self.wheel_base / 2 + self.wheel_width / 2 > self.body_radius:
@@ -94,6 +104,7 @@ class RobotGeometry:
 
     @property
     def chassis_length(self) -> float:
+        """Height of the chassis cylinder (body height minus ground clearance)."""
         return self.body_height - self.clearance
 
     @property
@@ -145,6 +156,7 @@ def _contact(link: ET.Element, friction: float) -> None:
 
 
 def build_urdf(emb: Mapping[str, Any], name: str = "kznav_robot") -> str:
+    """URDF of the robot generated from the embodiment config (see the module docstring for the links)."""
     g = RobotGeometry.from_config(emb)
     drive = emb["drive"]
     robot = ET.Element("robot", name=name)

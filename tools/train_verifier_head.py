@@ -37,6 +37,7 @@ SYNONYMS = {"bed": ["bed"], "chair": ["chair", "armchair"], "plant": ["plant", "
 
 
 def embed_images(model, proc, files, batch=64):
+    """Normalised SigLIP 2 image embeddings of files, in batches."""
     import torch
     from PIL import Image
 
@@ -51,6 +52,7 @@ def embed_images(model, proc, files, batch=64):
 
 
 def embed_texts(model, proc, texts):
+    """Normalised SigLIP 2 embeddings of names in the prompt template."""
     import torch
 
     with torch.inference_mode():
@@ -60,16 +62,19 @@ def embed_texts(model, proc, texts):
 
 
 def features(img: np.ndarray, txt: np.ndarray) -> np.ndarray:
+    """Head input: image embedding, text embedding and their element-wise product."""
     return np.concatenate([img, txt, img * txt], axis=1).astype(np.float32)
 
 
 def make_head(dim: int, hidden: int = 512):
+    """The MLP head: linear, GELU, dropout, linear to one logit."""
     import torch.nn as nn
 
     return nn.Sequential(nn.Linear(dim, hidden), nn.GELU(), nn.Dropout(0.1), nn.Linear(hidden, 1))
 
 
 def predict(head, X: np.ndarray) -> np.ndarray:
+    """Sigmoid outputs of the head."""
     import torch
 
     head.eval()
@@ -79,6 +84,7 @@ def predict(head, X: np.ndarray) -> np.ndarray:
 
 
 def artifact(p, y, name: str, model_id: str, sha: str, note: str) -> CalibrationArtifact:
+    """Calibration artifact of the head's scores (Platt fit, max-F1 threshold)."""
     cal = PlattCalibrator.fit(p, y)
     thr = choose_threshold(cal(p), y)
     return CalibrationArtifact(calibrator=cal.to_dict(), threshold=asdict(thr), backend=name, model_id=model_id,
@@ -88,6 +94,7 @@ def artifact(p, y, name: str, model_id: str, sha: str, note: str) -> Calibration
 
 
 def main() -> None:
+    """Command-line entry point: train the head, evaluate it on the verifier crops and save it."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", default=str(REPO / "runs/verifier_data/v1"))
     ap.add_argument("--out", default=str(REPO / "models/verifier/siglip_head_v1"))

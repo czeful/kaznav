@@ -43,12 +43,21 @@ def _bin_index(values: np.ndarray, n_bins: int, lo: float = 0.0, hi: float = 1.0
 
 @dataclass(frozen=True)
 class ReliabilityDiagram:
+    """Per-bin counts, mean predicted probability and observed positive rate of a reliability diagram.
+
+    Attributes:
+        edges: Bin edges over [0, 1], length ``n_bins + 1``.
+        counts: Samples per bin.
+        mean_pred: Mean predicted probability per bin (NaN for empty bins).
+        frac_pos: Fraction of positive labels per bin (NaN for empty bins).
+    """
     edges: np.ndarray
     counts: np.ndarray
     mean_pred: np.ndarray  # NaN for empty bins
     frac_pos: np.ndarray   # NaN for empty bins
 
     def rows(self) -> "list[dict]":
+        """Return the diagram as one dict per bin (bin edges, count, mean prediction, positive rate)."""
         out = []
         for i in range(len(self.counts)):
             out.append(
@@ -64,6 +73,19 @@ class ReliabilityDiagram:
 
 
 def reliability_diagram(probs: Sequence[float], labels: Sequence[bool], n_bins: int = 10) -> ReliabilityDiagram:
+    """Bin predicted probabilities into equal-width bins and compare them with the observed outcomes.
+
+    Args:
+        probs: Predicted probabilities in [0, 1].
+        labels: Binary ground-truth labels, aligned with ``probs``.
+        n_bins: Number of equal-width bins over [0, 1].
+
+    Returns:
+        The reliability diagram.
+
+    Raises:
+        ValueError: If the probabilities are not finite and within [0, 1] or the labels are not binary.
+    """
     p, y = _prep(probs, labels)
     idx = _bin_index(p, n_bins)
     counts = np.bincount(idx, minlength=n_bins)
@@ -74,6 +96,16 @@ def reliability_diagram(probs: Sequence[float], labels: Sequence[bool], n_bins: 
 
 
 def ece_binary(probs: Sequence[float], labels: Sequence[bool], n_bins: int = 10) -> float:
+    """Expected calibration error of P(positive): the count-weighted mean |observed rate - mean prediction| over bins.
+
+    Args:
+        probs: Predicted probabilities of the positive class.
+        labels: Binary ground-truth labels.
+        n_bins: Number of equal-width bins.
+
+    Returns:
+        The ECE in [0, 1].
+    """
     rd = reliability_diagram(probs, labels, n_bins)
     mask = rd.counts > 0
     gaps = np.abs(rd.frac_pos[mask] - rd.mean_pred[mask])
@@ -102,5 +134,6 @@ def ece_top_label(probs: Sequence[float], labels: Sequence[bool], n_bins: int = 
 
 
 def brier_score(probs: Sequence[float], labels: Sequence[bool]) -> float:
+    """Mean squared difference between predicted probabilities and binary labels (lower is better)."""
     p, y = _prep(probs, labels)
     return float(np.mean((p - y) ** 2))

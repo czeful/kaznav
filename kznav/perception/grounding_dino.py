@@ -60,6 +60,15 @@ def box_area_frac(box: Sequence[float], width: int, height: int) -> float:
 
 @DETECTORS.register("grounding_dino")
 class GroundingDinoDetector(Detector):
+    """GroundingDINO / MM-GroundingDINO through HF transformers (see the module docstring for the modes).
+
+    Args:
+        spec: Detector config: ``model_id``, ``box_threshold``, ``text_threshold``, ``query_mode``,
+            ``input_resize``, ``max_box_area_frac`` and ``device``.
+
+    Raises:
+        ValueError: If ``query_mode`` or ``input_resize`` has an unknown value.
+    """
     def __init__(self, spec: Mapping[str, Any]):
         super().__init__(spec)
         import torch
@@ -84,6 +93,17 @@ class GroundingDinoDetector(Detector):
         self.last_latency_s = float("nan")
 
     def detect(self, rgb: np.ndarray, queries: Sequence[str], aux: Optional[Mapping[str, Any]] = None) -> List[Detection]:
+        """Detect every query in one image.
+
+        Args:
+            rgb: HxWx3 uint8 image.
+            queries: English visual hypotheses.
+            aux: Ignored (ground-truth side channels are for oracle detectors only).
+
+        Returns:
+            Detections at or above ``box_threshold``, each assigned to the query of its caption (``separate``) or
+            to the query its phrase overlaps most (``joint``); boxes larger than ``max_box_area_frac`` are dropped.
+        """
         if not queries:
             return []
         from PIL import Image
@@ -123,4 +143,5 @@ class GroundingDinoDetector(Detector):
         return out
 
     def describe_config(self) -> Dict[str, Any]:
+        """Class, config and counters (unmatched phrases, dropped large boxes) for the manifest."""
         return {**super().describe_config(), "model_id": self.model_id}

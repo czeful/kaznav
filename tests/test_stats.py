@@ -1,3 +1,4 @@
+"""Statistics: bootstrap and Wilson intervals, effect sizes, exact McNemar and the aggregate tables."""
 import math
 
 import numpy as np

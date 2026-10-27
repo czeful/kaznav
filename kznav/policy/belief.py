@@ -40,11 +40,13 @@ import numpy as np
 
 
 def logit(p: float, eps: float = 1e-6) -> float:
+    """Log-odds of ``p``, with ``p`` clipped to [eps, 1 - eps] so that 0 and 1 stay finite."""
     p = min(max(p, eps), 1.0 - eps)
     return math.log(p / (1.0 - p))
 
 
 def sigmoid(x: float) -> float:
+    """Logistic function, computed without overflow for large negative inputs."""
     if x >= 0:
         return 1.0 / (1.0 + math.exp(-x))
     e = math.exp(x)
@@ -53,6 +55,19 @@ def sigmoid(x: float) -> float:
 
 @dataclass(frozen=True)
 class BeliefParams:
+    """Parameters of the hypothesis belief and of candidate evidence (``policy.belief``).
+
+    Attributes:
+        rho_right: P(candidate is the target | fully matched to the right hypothesis).
+        rho_wrong: P(candidate is the target | matched to a wrong hypothesis).
+        base_rate: Positive rate of the verifier's calibration set (pi).
+        evidence_power: Exponent beta in (0, 1] that tempers each verification's likelihood.
+        weight_floor: Minimum normalised weight per hypothesis.
+        view_discount: Discount gamma in (0, 1] for repeated views of one candidate.
+
+    Raises:
+        ValueError: If a parameter is outside its range.
+    """
     rho_right: float      # P(candidate is target | fully matched to the right hypothesis)
     rho_wrong: float      # P(candidate is target | matched to a wrong hypothesis)
     base_rate: float      # verifier calibration-set positive rate (pi)
@@ -90,6 +105,7 @@ class HypothesisBelief:
 
     @property
     def weights(self) -> np.ndarray:
+        """Current normalised hypothesis weights (a copy)."""
         return self._w.copy()
 
     def _apply_floor(self, w: np.ndarray) -> np.ndarray:
@@ -109,6 +125,18 @@ class HypothesisBelief:
             clamp = new_clamp
 
     def likelihoods(self, match: Sequence[float], p_target: float) -> np.ndarray:
+        """Likelihood of one verification answer under each hypothesis, ``rho_k * lambda + (1 - rho_k)``.
+
+        Args:
+            match: Per-hypothesis association strengths ``m_k`` in [0, 1] of the verified candidate.
+            p_target: Calibrated verifier probability that the crop shows the target.
+
+        Returns:
+            One likelihood per hypothesis (unnormalised).
+
+        Raises:
+            ValueError: If ``match`` does not have one entry per hypothesis.
+        """
         m = np.clip(np.asarray(match, dtype=float), 0.0, 1.0)
         if m.size != len(self.names):
             raise ValueError("match vector length differs from number of hypotheses")
@@ -137,10 +165,12 @@ class CandidateEvidence:
     first_view_full: bool = False      # D-069: the discount applies to repeated views, not to the first one
 
     def add(self, p_target: float) -> float:
+        """Record one calibrated verifier answer and return the updated P(candidate is the target)."""
         self.observations.append(float(p_target))
         return self.probability()
 
     def probability(self) -> float:
+        """P(candidate is the target) from all answers so far; the base rate before the first answer."""
         if not self.observations:
             return self.base_rate
         prior = logit(self.base_rate)

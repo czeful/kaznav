@@ -27,6 +27,11 @@ import numpy as np
 
 @dataclass(frozen=True)
 class PowerParams:
+    """Inputs of the simulated power analysis for one paired contrast of success rates (D-049).
+
+    The discordance ``psi`` is the probability that the two arms differ on an episode; scene-level variation is
+    modelled with ``sigma_scene`` (success rates) and ``tau`` (the effect).
+    """
     p_a: float                   # success rate of the reference arm
     delta: float                 # p_b - p_a (absolute, e.g. 0.10 = 10 points)
     psi: float                   # discordance P(A != B); must be >= |delta|

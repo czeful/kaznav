@@ -21,6 +21,3 @@ data/
 # Videos are shared separately (GitHub Releases / a drive), not in git.
 *.mp4
 
-# Assistant working notes, not part of the project.
-CLAUDE.md
-.claude/

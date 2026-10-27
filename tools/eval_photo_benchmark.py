@@ -40,6 +40,7 @@ from kznav.run.manifest import build_manifest, write_manifest  # noqa: E402
 
 
 def run_parse(bank: NaturalCommands, langs, split: str, goals, backend) -> pd.DataFrame:
+    """Parse the bank's commands of one split in every language and record whether a query names the object."""
     rows = []
     for c in bank.commands:
         if c.split != split or c.status == "rejected" or (split == "test" and c.status != "approved"):
@@ -59,6 +60,7 @@ def run_parse(bank: NaturalCommands, langs, split: str, goals, backend) -> pd.Da
 
 
 def run_verify(photos: pd.DataFrame, root: Path, lexicon, langs, backend) -> pd.DataFrame:
+    """Ask about every photo twice (its own category and its pair category) in every language."""
     rows = []
     for _, ph in photos.iterrows():
         img = np.asarray(Image.open(root / ph.file).convert("RGB"))
@@ -76,6 +78,7 @@ def run_verify(photos: pd.DataFrame, root: Path, lexicon, langs, backend) -> pd.
 
 
 def h2_table(metric: pd.DataFrame, value: str, pairs, word_type, langs) -> pd.DataFrame:
+    """Cultural-vs-universal interaction of a metric against English for each non-English language (H2)."""
     rows = []
     for lang in [l for l in langs if l != "en"]:
         r = pair_interaction(metric, value, pairs, word_type, lang)
@@ -84,6 +87,7 @@ def h2_table(metric: pd.DataFrame, value: str, pairs, word_type, langs) -> pd.Da
 
 
 def main() -> None:
+    """Command-line entry point: parse and verification measurements on the photos, with the H2 tables."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--photos", required=True)
     ap.add_argument("--commands", required=True, help="natural command bank for the pair categories")

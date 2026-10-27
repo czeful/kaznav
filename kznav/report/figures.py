@@ -29,6 +29,7 @@ def _despine(ax) -> None:
 
 
 def save(fig, path: Path) -> None:
+    """Save a matplotlib figure as PNG (200 dpi) and PDF next to each other, then close it."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path.with_suffix(".png"), dpi=200, bbox_inches="tight")

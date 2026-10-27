@@ -33,6 +33,7 @@ from .camera import Intrinsics, backproject, pixel_grid, to_world
 
 @dataclass(frozen=True)
 class MapParams:
+    """Occupancy-map parameters: grid size and resolution, log-odds update, obstacle height band, drop-off rule."""
     size_m: float
     resolution_m: float
     pixel_stride: int
@@ -50,6 +51,7 @@ class MapParams:
 
     @classmethod
     def from_config(cls, m: Mapping[str, Any], emb: Mapping[str, Any]) -> "MapParams":
+        """Build from the ``perception.map`` block and the embodiment (obstacle band and drop-off handling)."""
         lo = m["log_odds"]
         drops = bool(emb.get("drops_are_obstacles", True))
         return cls(
@@ -80,6 +82,13 @@ def _logit(p: float) -> float:
 
 
 class OccupancyMap:
+    """Log-odds occupancy grid of one episode, centred on the start (see the module docstring for the update).
+
+    Args:
+        params: Map parameters.
+        intrinsics: Camera intrinsics used to sample and back-project depth pixels.
+        origin_xy: Map-frame position the grid is centred on.
+    """
     def __init__(self, params: MapParams, intrinsics: Intrinsics, origin_xy: Tuple[float, float]):
         self.p = params
         self.K = intrinsics
@@ -105,22 +114,27 @@ class OccupancyMap:
         return self.x0 + (np.asarray(col) + 0.5) * self.res, self.y0 + (np.asarray(row) + 0.5) * self.res
 
     def in_bounds(self, r: np.ndarray, c: np.ndarray) -> np.ndarray:
+        """Element-wise mask of which (row, col) indices lie inside the grid."""
         return (r >= 0) & (r < self.n) & (c >= 0) & (c < self.n)
 
     # ------------------------------------------------------------------ state
     @property
     def occupied(self) -> np.ndarray:
+        """Observed cells whose occupancy log-odds is above the occupied threshold."""
         return self.observed & (self.log_odds > self._l_occ)
 
     @property
     def free(self) -> np.ndarray:
+        """Observed cells whose occupancy log-odds is below the free threshold."""
         return self.observed & (self.log_odds < self._l_free)
 
     @property
     def unknown(self) -> np.ndarray:
+        """Cells never observed."""
         return ~self.observed
 
     def inflated_obstacles(self, radius_m: float) -> np.ndarray:
+        """Occupied cells dilated by a disk of ``radius_m`` (the robot's footprint plus a margin)."""
         r = int(np.ceil(radius_m / self.res))
         yy, xx = np.mgrid[-r : r + 1, -r : r + 1]
         disk = (yy * yy + xx * xx) * self.res * self.res <= radius_m * radius_m
@@ -171,6 +185,17 @@ class OccupancyMap:
 
     def update_from_points(self, pts_world: np.ndarray, cam_world: np.ndarray, floor_y: float,
                            drop_points: Optional[np.ndarray] = None) -> np.ndarray:
+        """Integrate one frame's back-projected points into the grid.
+
+        Args:
+            pts_world: (N, 3) world points of the frame's sampled depth pixels.
+            cam_world: Camera position in the world frame.
+            floor_y: Floor height under the robot.
+            drop_points: Optional floor-plane points of pixels without a depth return (drop-offs, D-031).
+
+        Returns:
+            The (row, col) cells observed in this frame, unique; the value map writes into them.
+        """
         cat = self.classify_points(pts_world, floor_y)
         ex, ey = pts_world[:, 0], -pts_world[:, 2]
         er, ec = self.to_cell(ex, ey)
@@ -244,7 +269,9 @@ class OccupancyMap:
 
     # ------------------------------------------------------------------ export
     def probability(self) -> np.ndarray:
+        """Occupancy probability of every cell (logistic of the log-odds)."""
         return 1.0 / (1.0 + np.exp(-self.log_odds))
 
     def explored_area_m2(self) -> float:
+        """Area of the observed cells in square metres."""
         return float(self.observed.sum()) * self.res * self.res

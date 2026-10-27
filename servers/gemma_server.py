@@ -52,6 +52,12 @@ def to_gemma_messages(messages: List[dict], decode: Callable[[str], Image.Image]
 
 
 class GemmaEngine:
+    """Gemma 3 loaded in bfloat16 on one GPU; answers one chat request at a time.
+
+    Args:
+        model_path: Hugging Face id or local path of the checkpoint.
+        device: Torch device.
+    """
     def __init__(self, model_path: str, device: str = "cuda"):
         from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 
@@ -64,6 +70,18 @@ class GemmaEngine:
     @torch.no_grad()
     def chat(self, messages: List[dict], *, temperature: float, max_tokens: int, want_logprobs: bool,
              top_logprobs: int) -> Dict[str, Any]:
+        """Generate one answer to OpenAI-style messages.
+
+        Args:
+            messages: OpenAI chat messages (text and ``image_url`` parts).
+            temperature: Sampling temperature; 0 decodes greedily.
+            max_tokens: Maximum number of new tokens.
+            want_logprobs: Also return the top log-probabilities of the first generated token.
+            top_logprobs: How many of them.
+
+        Returns:
+            The text, latency, token counts, first-token top log-probabilities and image token counts.
+        """
         gmsgs, images = to_gemma_messages(messages)
         prompt = self.processor.apply_chat_template(gmsgs, tokenize=False, add_generation_prompt=True)
         inputs = self.processor(text=[prompt], images=[images] if images else None, return_tensors="pt").to(self.device)
@@ -97,6 +115,7 @@ class GemmaEngine:
 
 
 class ChatRequest(BaseModel):
+    """Body of ``/v1/chat/completions``: the OpenAI fields the bench uses (other fields are accepted and ignored)."""
     model_config = ConfigDict(extra="allow")
     model: str
     messages: List[dict]
@@ -108,6 +127,7 @@ class ChatRequest(BaseModel):
 
 
 def create_app(engine: GemmaEngine, served_name: str) -> FastAPI:
+    """FastAPI app with the OpenAI chat endpoint plus ``/kznav/stats`` and ``/kznav/reset_peak`` (GPU memory)."""
     app = FastAPI(title="kznav Gemma server")
 
     @app.get("/v1/models")
@@ -139,6 +159,7 @@ def create_app(engine: GemmaEngine, served_name: str) -> FastAPI:
 
 
 def main() -> None:
+    """Parse the command line, load the model and serve it."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", default="google/gemma-3-4b-it")
     ap.add_argument("--served-name", default="gemma-3-4b")

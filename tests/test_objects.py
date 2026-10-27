@@ -1,3 +1,4 @@
+"""Object memory: 3-D localisation, association and filtering of detections; the oracle detector; box masks."""
 import numpy as np
 import pytest
 

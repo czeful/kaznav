@@ -10,6 +10,14 @@ GREEN, RED, AMBER, CYAN = (90, 220, 90), (255, 90, 90), (255, 190, 60), (120, 21
 
 
 class EpisodeVideo:
+    """Writes one episode's debug video, one frame per decision step.
+
+    Args:
+        path: Output MP4 path.
+        cfg: The run config (depth range and robot radius are read).
+        label: Text shown in the frame's header.
+        language: The episode's language goal, shown in the text band, or None.
+    """
     def __init__(self, path: Path, cfg, label: str, language=None):
         self.w = Mp4Writer(path, fps=4.0)
         self.max_depth = float(cfg["embodiment"]["sensors"]["rgbd"]["depth"]["max_m"])
@@ -18,6 +26,7 @@ class EpisodeVideo:
         self.language = language
 
     def __call__(self, *, obs, decision, policy, trace, step, episode):
+        """Render and append the frame of one decision step (camera, maps, decision text)."""
         import cv2
 
         fr_cells = [f.cell for f in policy.last_frontiers]
@@ -60,4 +69,5 @@ class EpisodeVideo:
         self.w.write(compose(panels, 360, text))
 
     def close(self):
+        """Finish the MP4 file."""
         self.w.close()

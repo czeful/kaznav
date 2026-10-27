@@ -52,6 +52,12 @@ def _sanitize(o: Any) -> Any:
 
 
 class JsonlWriter:
+    """Appends JSON objects to a file, one per line, flushed after every write.
+
+    Args:
+        path: Output file (parent directories are created).
+        fsync: Also force each line to disk.
+    """
     def __init__(self, path: Path, fsync: bool = False):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -59,21 +65,29 @@ class JsonlWriter:
         self._fsync = fsync
 
     def write(self, obj: Dict[str, Any]) -> None:
+        """Append one object as a line (NaN and infinities are written as null)."""
         self._f.write(json.dumps(_sanitize(obj), ensure_ascii=False, default=_json_default, allow_nan=False) + "\n")
         self._f.flush()
         if self._fsync:
             os.fsync(self._f.fileno())
 
     def close(self) -> None:
+        """Close the file."""
         self._f.close()
 
 
 class ImageStore:
+    """Content-addressed store of the images sent to models: each file is named by its SHA-256.
+
+    Args:
+        root: Directory of the stored images.
+    """
     def __init__(self, root: Path):
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
 
     def put(self, data: bytes, ext: str = "png") -> str:
+        """Store image bytes once (atomically) and return their SHA-256."""
         digest = hashlib.sha256(data).hexdigest()
         path = self.root / f"{digest}.{ext}"
         if not path.exists():
@@ -93,6 +107,7 @@ class JsonlCallSink:
         self.n_calls = 0
 
     def __call__(self, rec: CallRecord) -> None:
+        """Write a call record to the call log and its input images to the image store."""
         d = rec.to_json_dict()
         d["image_files"] = [f"images/{self.images.put(b, self.image_ext)}.{self.image_ext}" for b in rec.images]
         self.writer.write(d)
@@ -114,15 +129,18 @@ class RunLogger:
         self.attempt: Optional[str] = None
 
     def event(self, event_type: str, *, episode_id: str, step: int, **payload: Any) -> None:
+        """Append one event of an episode to ``events.jsonl`` (tagged with the current attempt)."""
         extra = {"attempt": self.attempt} if self.attempt is not None else {}
         self.events.write({"type": event_type, "episode_id": episode_id, "step": step, **extra, **payload})
 
     def close(self) -> None:
+        """Close the call log and the event log."""
         self.calls.close()
         self.events.close()
 
 
 def read_jsonl(path: Path, type_filter: Optional[str] = None):
+    """Yield the objects of a JSONL file, optionally only those whose ``type`` equals ``type_filter``."""
     with open(path, encoding="utf-8") as f:
         for line in f:
             if line.strip():

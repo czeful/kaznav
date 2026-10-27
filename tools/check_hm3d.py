@@ -56,6 +56,7 @@ def mapping(objects, goals):
 
 
 def main() -> None:
+    """Command-line entry point: match goals to the semantic annotation and prepare episodes per embodiment."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--embodiments", default="habitat_agent,wheeled_vacuum")

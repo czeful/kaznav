@@ -16,6 +16,15 @@ import numpy as np
 
 
 class ValueMap:
+    """Confidence-weighted semantic value per map cell (see the module docstring for the update).
+
+    Args:
+        shape: Grid shape, equal to the occupancy map's.
+        res: Cell size in metres.
+        x0: Map-frame x of the grid's left edge.
+        y0: Map-frame y of the grid's bottom edge.
+        hfov_deg: Horizontal field of view of the camera, for the confidence fall-off.
+    """
     def __init__(self, shape: Tuple[int, int], res: float, x0: float, y0: float, hfov_deg: float):
         self.value = np.zeros(shape, dtype=np.float32)
         self.conf = np.zeros(shape, dtype=np.float32)
@@ -42,6 +51,7 @@ class ValueMap:
         self.n_updates += 1
 
     def value_at(self, cell: Tuple[int, int], radius_cells: int = 0) -> float:
+        """Value of a cell, or the maximum over observed cells within ``radius_cells`` of it (0 if none observed)."""
         if radius_cells <= 0:
             return float(self.value[cell])
         r, c = cell
@@ -50,6 +60,7 @@ class ValueMap:
         return float(self.value[sl][seen].max()) if seen.any() else 0.0
 
     def normalized(self) -> Optional[np.ndarray]:
+        """Values of observed cells rescaled to [0, 1] (for display); None before the first update."""
         seen = self.conf > 0
         if not seen.any():
             return None

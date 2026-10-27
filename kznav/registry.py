@@ -13,6 +13,15 @@ T = TypeVar("T")
 
 
 class Registry(Generic[T]):
+    """Maps names to classes of one component kind (e.g. VLM backends) and resolves config blocks to classes.
+
+    The built-in implementations register themselves on import; ``builtin_modules`` are imported lazily on the
+    first lookup, so the registry can be created before the modules that fill it.
+
+    Args:
+        kind: Human-readable component kind, used in error messages.
+        builtin_modules: Modules whose import registers the built-in classes.
+    """
     def __init__(self, kind: str, builtin_modules: List[str]):
         self.kind = kind
         self._builtin_modules = builtin_modules
@@ -20,6 +29,11 @@ class Registry(Generic[T]):
         self._builtins_loaded = False
 
     def register(self, name: str) -> Callable[[Type[T]], Type[T]]:
+        """Class decorator that registers the decorated class under ``name``.
+
+        Raises:
+            ValueError: If another class is already registered under the same name.
+        """
         def deco(cls: Type[T]) -> Type[T]:
             if name in self._classes and self._classes[name] is not cls:
                 raise ValueError(f"{self.kind} {name!r} is already registered to {self._classes[name]!r}")
@@ -35,10 +49,16 @@ class Registry(Generic[T]):
             self._builtins_loaded = True
 
     def names(self) -> List[str]:
+        """Return the registered names, sorted (built-ins included)."""
         self._load_builtins()
         return sorted(self._classes)
 
     def get(self, name: str) -> Type[T]:
+        """Return the class registered under ``name``.
+
+        Raises:
+            KeyError: If no class is registered under that name; the message lists the registered ones.
+        """
         self._load_builtins()
         try:
             return self._classes[name]

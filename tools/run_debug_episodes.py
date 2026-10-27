@@ -51,6 +51,7 @@ from kznav.language.commands import WORD_LANG  # noqa: E402
 
 
 def command_for(templates: dict, lexicon: Lexicon, lang: str, category: str, i: int):
+    """A template command for a category in a language: ``(template id, text)``."""
     t = templates[lang][i % len(templates[lang])]
     names = lexicon.categories[category].names
     text = t["text"].format(**{k: (names.get(k) or [category])[0] for k in ("kk", "ru", "en")})
@@ -58,6 +59,7 @@ def command_for(templates: dict, lexicon: Lexicon, lang: str, category: str, i: 
 
 
 def main() -> None:
+    """Command-line entry point: place objects, sample episodes and run them with optional videos."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--videos", type=int, default=2, help="record the first N episodes")
     ap.add_argument("--lang", default="none", choices=["none", "kk", "kk_ru", "en"])

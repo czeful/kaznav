@@ -25,6 +25,17 @@ MODES = ("siglip_head", "siglip_zero")
 
 
 class SiglipVerifierBackend:
+    """Verifier backend that answers locally with SigLIP 2 instead of a language model (D-075).
+
+    Args:
+        encoder: The policy's SigLIP value encoder (its model and text cache are reused).
+        mode: ``siglip_zero`` (SigLIP's own sigmoid) or ``siglip_head`` (a trained MLP head).
+        head_file: Checkpoint of the head (``siglip_head`` only).
+
+    Raises:
+        ValueError: If the mode is unknown, the encoder is missing, or the head was trained for another encoder or
+            prompt template.
+    """
     def __init__(self, encoder: Any, mode: str, head_file: Optional[str] = None):
         if mode not in MODES:
             raise ValueError(f"local verifier mode must be one of {MODES}, not {mode!r}")
@@ -60,6 +71,7 @@ class SiglipVerifierBackend:
         return (e / e.norm(dim=-1, keepdim=True)).float()[0]
 
     def p_target(self, rgb: np.ndarray, name: str) -> float:
+        """P(the image shows ``name``) from SigLIP: the trained head, or SigLIP's own sigmoid on the cosine."""
         img = self._image(rgb)
         txt = self.enc._text_embeddings([name])[0].float()
         with self.torch.inference_mode():
@@ -69,6 +81,7 @@ class SiglipVerifierBackend:
             return float(self.torch.sigmoid(self.torch.tensor(self.scale * float(img @ txt) + self.bias)))
 
     def verify_candidate(self, image: np.ndarray, query: VerifyQuery) -> VerificationResult:
+        """Answer the verifier's question about a crop, in the same form as a VLM backend."""
         p = self.p_target(image, query.target)
         return VerificationResult(p_target=p, source=self.name, coverage=1.0, answer_text=f"{p:.4f}",
                                   label_from_text=None)

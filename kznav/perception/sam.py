@@ -17,6 +17,11 @@ from .base import SEGMENTERS, Segmenter
 
 @SEGMENTERS.register("sam2")
 class Sam2Segmenter(Segmenter):
+    """SAM 2 box-prompted segmenter (D-060); see the module docstring.
+
+    Args:
+        spec: Segmenter config: ``model_id``, ``min_pixels``, ``device``.
+    """
     precise = True
 
     def __init__(self, spec: Mapping[str, Any]):
@@ -46,6 +51,7 @@ class Sam2Segmenter(Segmenter):
         self._frame = rgb
 
     def segment(self, rgb: np.ndarray, box_xyxy: Sequence[float]) -> Optional[np.ndarray]:
+        """Mask of the object inside ``box_xyxy``, clipped to the box; None if it has fewer than ``min_pixels``."""
         t0 = time.perf_counter()
         if rgb is not self._frame:
             self._encode(rgb)
@@ -67,4 +73,5 @@ class Sam2Segmenter(Segmenter):
         return mask
 
     def describe_config(self) -> Mapping[str, Any]:
+        """Class, config and timing for the manifest."""
         return {**super().describe_config(), "model_id": self.model_id}

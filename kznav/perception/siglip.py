@@ -15,6 +15,11 @@ from .base import VALUE_ENCODERS, ValueEncoder
 
 @VALUE_ENCODERS.register("siglip2")
 class Siglip2Encoder(ValueEncoder):
+    """SigLIP 2 relevance of the whole image to each goal hypothesis (cosine similarity).
+
+    Args:
+        spec: Encoder config: ``model_id``, ``prompt_template`` (e.g. ``"a photo of a {}."``), ``dtype``, ``device``.
+    """
     def __init__(self, spec: Mapping[str, Any]):
         super().__init__(spec)
         import torch
@@ -42,6 +47,7 @@ class Siglip2Encoder(ValueEncoder):
         return self.torch.stack([self._text_cache[t] for t in texts])
 
     def score(self, rgb: np.ndarray, texts: Sequence[str]) -> np.ndarray:
+        """Cosine similarity between the image embedding and each text's template embedding (shape ``[len(texts)]``)."""
         if not texts:
             return np.zeros(0)
         from PIL import Image

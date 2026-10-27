@@ -33,6 +33,7 @@ from kznav.sim.mesh_drive import sample_pairs  # noqa: E402
 
 
 def main() -> None:
+    """Command-line entry point: drive random navmesh routes and write the demo video and a summary."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--scene", default="scene_datasets/habitat-test-scenes/apartment_1.glb",
                     help="GLB path, absolute or relative to paths.data_root")

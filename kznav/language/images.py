@@ -23,4 +23,5 @@ def encode_image(image: np.ndarray, fmt: str = "png", max_side: Optional[int] = 
 
 
 def data_uri(data: bytes, fmt: str) -> str:
+    """Encode image bytes as a ``data:image/<fmt>;base64,...`` URI for a chat request."""
     return f"data:image/{fmt.lower()};base64,{base64.b64encode(data).decode('ascii')}"

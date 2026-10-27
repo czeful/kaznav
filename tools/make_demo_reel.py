@@ -26,6 +26,7 @@ FPS = 4.0
 
 
 def read_frames(path: Path):
+    """Yield the RGB frames of a video."""
     import imageio
 
     r = imageio.get_reader(str(path))
@@ -37,6 +38,7 @@ def read_frames(path: Path):
 
 
 def card(h: int, w: int, lines, size: int = 30) -> np.ndarray:
+    """A dark title card with the first line highlighted."""
     img = np.full((h, w, 3), 18, dtype=np.uint8)
     y0 = h // 2 - len(lines) * (size + 14) // 2
     for i, line in enumerate(lines):
@@ -45,12 +47,14 @@ def card(h: int, w: int, lines, size: int = 30) -> np.ndarray:
 
 
 def pad(f: np.ndarray, h: int, w: int) -> np.ndarray:
+    """Place a frame at the top left of an ``h`` x ``w`` black canvas."""
     out = np.zeros((h, w, 3), dtype=np.uint8)
     out[: f.shape[0], : f.shape[1]] = f[:h, :w]
     return out
 
 
 def main() -> None:
+    """Command-line entry point: write the reel."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("clips", nargs="+", help="path=caption")
     ap.add_argument("--out", required=True)

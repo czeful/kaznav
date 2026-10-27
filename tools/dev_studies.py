@@ -28,6 +28,17 @@ from kznav.run.config import compose_config  # noqa: E402
 
 
 def pitch_study(pitches, overrides, out: Path) -> pd.DataFrame:
+    """Goal visibility from the wheeled robot's camera for each pitch: view points per goal instance,
+    exclusions and runnable episodes per category.
+
+    Args:
+        pitches: Camera pitches in degrees (positive = up).
+        overrides: Hydra overrides of the dev configuration.
+        out: Output directory.
+
+    Returns:
+        One row per pitch.
+    """
     from kznav.run.benchmark import Exclusion, ViewPointCache, prepare_episode, view_point_params
     from kznav.sim.env import HabitatEnv, SceneSpec
     from kznav.sim.objectnav_dataset import load_objectnav_v1, read_id_list, scenes_of_ids, select_episodes
@@ -73,6 +84,15 @@ def pitch_study(pitches, overrides, out: Path) -> pd.DataFrame:
 
 
 def budget_curve(runs, out: Path) -> pd.DataFrame:
+    """SR as a function of the decision-step limit, with the smallest limit reaching 99% of the full SR.
+
+    Args:
+        runs: Run directories (their ``episodes.csv`` is read).
+        out: Output directory of the figure.
+
+    Returns:
+        The curve, with the recommended limit marked.
+    """
     df = pd.concat([pd.read_csv(Path(r) / "episodes.csv") for r in runs], ignore_index=True)
     steps = df.num_decision_steps.astype(int)
     succ = df.success.astype(bool)
@@ -122,6 +142,7 @@ def pitch_select(runs: dict) -> pd.DataFrame:
 
 
 def main() -> None:
+    """Command-line entry point: ``pitch``, ``pitch-select`` or ``budget``."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("pitch")

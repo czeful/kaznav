@@ -1,3 +1,4 @@
+"""Calibration metrics (ECE, reliability diagram) and binary classification metrics, including the pilot's numbers."""
 import json
 from pathlib import Path
 

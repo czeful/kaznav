@@ -26,6 +26,7 @@ from kznav.policy.calibration import PlattCalibrator, choose_threshold  # noqa: 
 
 
 def auroc(p: np.ndarray, y: np.ndarray) -> float:
+    """Area under the ROC curve via the rank-sum statistic (ties get average ranks); NaN without both classes."""
     pos, neg = p[y], p[~y]
     if not len(pos) or not len(neg):
         return float("nan")
@@ -40,17 +41,20 @@ def auroc(p: np.ndarray, y: np.ndarray) -> float:
 
 
 def load(runs):
+    """Raw verifier probabilities, content labels and episode ids of a group of runs."""
     p, y, _, eps, _ = collect([Path(r) for r in runs], "content")
     return np.asarray(p, float), np.asarray(y, bool), eps
 
 
 def judge(cal, thr: float, p: np.ndarray, y: np.ndarray) -> dict:
+    """ECE, precision, recall and F1 of a calibrator and threshold on one group's calls."""
     pc = cal(p)
     m = threshold_metrics(pc, y, thr)
     return {"ece": ece_binary(pc, y, 10), "precision": m.precision, "recall": m.recall, "f1": m.f1}
 
 
 def main() -> None:
+    """Command-line entry point: fit on each group, judge in-sample and on the other group, write the table."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--a", nargs="+", required=True)
     ap.add_argument("--b", nargs="+", required=True)

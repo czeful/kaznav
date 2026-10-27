@@ -112,6 +112,7 @@ def build(spec: dict, out: Path) -> list:
 
 
 def main() -> None:
+    """Command-line entry point: build the tables of a spec as markdown and LaTeX."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("spec")
     ap.add_argument("--out", required=True)

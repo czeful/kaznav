@@ -19,6 +19,7 @@ from kznav.sim.env import HabitatEnv, SceneSpec  # noqa: E402
 
 
 def main() -> None:
+    """Command-line entry point: render both embodiments from the same random spots into one figure."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--scene", required=True)
     ap.add_argument("--n", type=int, default=3)

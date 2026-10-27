@@ -39,6 +39,7 @@ IMG_START_TOKEN, IMG_END_TOKEN, IMG_CONTEXT_TOKEN = "<img>", "</img>", "<IMG_CON
 
 # ---------------------------------------------------------------------------- InternVL tiling
 def build_transform(input_size: int) -> T.Compose:
+    """Image transform of InternVL tiles: RGB, bicubic resize to a square, tensor, ImageNet normalisation."""
     return T.Compose([
         T.Lambda(lambda img: img.convert("RGB") if img.mode != "RGB" else img),
         T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
@@ -48,6 +49,7 @@ def build_transform(input_size: int) -> T.Compose:
 
 
 def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
+    """Tile grid ``(columns, rows)`` whose aspect ratio is closest to the image's (InternVL reference code)."""
     best_ratio_diff, best_ratio = float("inf"), (1, 1)
     area = width * height
     for ratio in target_ratios:
@@ -60,6 +62,7 @@ def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_
 
 
 def dynamic_preprocess(image: Image.Image, max_num: int, image_size: int = 448, use_thumbnail: bool = True):
+    """Split an image into at most ``max_num`` square tiles on the closest grid, plus a thumbnail if more than one."""
     w, h = image.size
     ratios = sorted({(i, j) for n in range(1, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1)
                      if 1 <= i * j <= max_num}, key=lambda x: x[0] * x[1])
@@ -76,12 +79,19 @@ def dynamic_preprocess(image: Image.Image, max_num: int, image_size: int = 448, 
 
 
 def decode_image(data_uri: str) -> Image.Image:
+    """Decode a base64 image or ``data:`` URI to an RGB image."""
     b64 = data_uri.split(",", 1)[1] if "," in data_uri else data_uri
     return Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
 
 
 # ---------------------------------------------------------------------------- model
 class QoldaEngine:
+    """Qolda (InternVL architecture) loaded in bfloat16 on one GPU; answers one chat request at a time.
+
+    Args:
+        model_path: Hugging Face id or local path of the checkpoint.
+        device: Torch device.
+    """
     def __init__(self, model_path: str, device: str = "cuda"):
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True, use_fast=False)
         self.model = AutoModel.from_pretrained(model_path, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True,
@@ -104,6 +114,20 @@ class QoldaEngine:
     @torch.no_grad()
     def chat(self, messages: List[dict], *, enable_thinking: bool, temperature: float, max_tokens: int,
              want_logprobs: bool, top_logprobs: int, max_num_tiles: int) -> Dict[str, Any]:
+        """Generate one answer to OpenAI-style messages.
+
+        Args:
+            messages: OpenAI chat messages (text and ``image_url`` parts).
+            enable_thinking: Use the model's thinking mode.
+            temperature: Sampling temperature; 0 decodes greedily.
+            max_tokens: Maximum number of new tokens.
+            want_logprobs: Also return the top log-probabilities of the first generated token.
+            top_logprobs: How many of them.
+            max_num_tiles: Maximum number of image tiles per image (D-007).
+
+        Returns:
+            The text, latency, token counts, first-token top log-probabilities and the tiles used per image.
+        """
         images = [decode_image(p["image_url"]["url"]) for m in messages if isinstance(m["content"], list)
                   for p in m["content"] if p.get("type") == "image_url"]
         prompt = self._prompt(messages, enable_thinking, len(images))
@@ -143,6 +167,7 @@ class QoldaEngine:
 
 
 class ChatRequest(BaseModel):
+    """Body of ``/v1/chat/completions``: the OpenAI fields the bench uses plus thinking mode and the tile limit."""
     model_config = ConfigDict(extra="allow")
     model: str
     messages: List[dict]
@@ -155,6 +180,7 @@ class ChatRequest(BaseModel):
 
 
 def create_app(engine: QoldaEngine, served_name: str, default_tiles: int) -> FastAPI:
+    """FastAPI app with the OpenAI chat endpoint plus ``/kznav/stats`` and ``/kznav/reset_peak`` (GPU memory)."""
     app = FastAPI(title="kznav Qolda server")
 
     @app.get("/v1/models")
@@ -201,6 +227,7 @@ def create_app(engine: QoldaEngine, served_name: str, default_tiles: int) -> Fas
 
 
 def main() -> None:
+    """Parse the command line, load the model and serve it."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", default="issai/Qolda")
     ap.add_argument("--served-name", default="qolda-4b")

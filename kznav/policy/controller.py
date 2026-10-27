@@ -21,6 +21,7 @@ import numpy as np
 
 @dataclass(frozen=True)
 class PurePursuitParams:
+    """Controller parameters (``policy.controller``): look-ahead, goal tolerance, speed caps, rotate-in-place angle."""
     lookahead_m: float
     goal_tolerance_m: float
     max_lin_vel: float
@@ -31,6 +32,7 @@ class PurePursuitParams:
 
     @classmethod
     def from_config(cls, c: Mapping[str, Any]) -> "PurePursuitParams":
+        """Build from the ``policy.controller`` config block."""
         return cls(**{k: float(c[k]) for k in cls.__dataclass_fields__})
 
 
@@ -39,12 +41,18 @@ def _wrap(a: float) -> float:
 
 
 class PurePursuit:
+    """Pure-pursuit path follower with rotate-in-place for a differential-drive robot (see the module docstring)."""
     def __init__(self, params: PurePursuitParams):
         self.p = params
         self.path = np.zeros((0, 2))
         self._seg = 0
 
     def set_path(self, points_xy: Sequence[Sequence[float]]) -> None:
+        """Follow a new polyline path (map frame) from its first segment.
+
+        Raises:
+            ValueError: If the path is empty.
+        """
         pts = np.asarray(points_xy, dtype=float).reshape(-1, 2)
         if len(pts) == 0:
             raise ValueError("empty path")
@@ -52,6 +60,7 @@ class PurePursuit:
         self._seg = 0
 
     def done(self, pose: Tuple[float, float, float]) -> bool:
+        """Whether the pose is within the goal tolerance of the path's last point."""
         return bool(np.hypot(*(self.path[-1] - pose[:2])) <= self.p.goal_tolerance_m)
 
     def _lookahead_point(self, xy: np.ndarray) -> np.ndarray:
@@ -84,6 +93,7 @@ class PurePursuit:
         return path[-1]
 
     def command(self, pose: Tuple[float, float, float]) -> Tuple[float, float]:
+        """Velocity command ``(v, w)`` for the current pose ``(x, y, yaw)``; ``(0, 0)`` at the goal."""
         x, y, yaw = pose
         xy = np.array([x, y])
         if self.done(pose):

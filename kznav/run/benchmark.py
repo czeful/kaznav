@@ -60,6 +60,7 @@ FAILURE_COLUMNS = ("episode_id", "scene_id", "category", "attempt", "kind", "err
 
 @dataclass
 class Exclusion:
+    """A dataset episode that is not run for this embodiment, decided from geometry before it starts (D-041)."""
     episode_id: str
     scene_id: str
     category: str
@@ -102,13 +103,16 @@ class ViewPointCache:
                     break
 
     def get(self, object_id: str) -> Optional[List[List[float]]]:
+        """Cached view points of an object, or None."""
         return self.view_points.get(str(object_id))
 
     def put(self, object_id: str, vps: List[List[float]]) -> None:
+        """Store an object's view points (written to disk on ``save``)."""
         self.view_points[str(object_id)] = vps
         self.dirty = True
 
     def save(self) -> None:
+        """Write the cache atomically if anything changed."""
         if self.dirty:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.path.with_suffix(self.path.suffix + ".tmp")
@@ -134,6 +138,21 @@ def lookup_object(objects: Mapping[int, SemanticObject], object_id: str) -> Opti
 
 def prepare_episode(env: Any, de: DatasetEpisode, cfg: Mapping[str, Any], *, objects: Mapping[int, SemanticObject],
                     cache: Optional[ViewPointCache] = None) -> Union[ObjectNavEpisode, Exclusion]:
+    """Turn a dataset episode into a runnable episode for the configured embodiment, or exclude it.
+
+    For the standard agent the dataset's navmesh and view points are used; for the robot-vacuum the view points
+    are recomputed for its camera (cached), the start is snapped to its navmesh, and unreachable goals are excluded.
+
+    Args:
+        env: The simulator of the episode's scene.
+        de: The dataset episode.
+        cfg: The run config.
+        objects: The scene's semantic objects by semantic id.
+        cache: View-point cache of the scene, or None.
+
+    Returns:
+        The prepared episode, or an ``Exclusion`` with its reason.
+    """
     bm, vp = cfg["eval"]["benchmark"], cfg["eval"]["view_points"]
     dataset_vps = uses_dataset_view_points(cfg)
 
@@ -229,9 +248,11 @@ class LanguageRun:
                                      f"{self.verifier_backend}" + (f" (head {self.head_file})" if sha else ""))
 
     def warmup(self) -> None:
+        """Send the configured number of warm-up calls (excluded from the statistics)."""
         self.backend.warmup(int(self.cfg["backend"].get("warmup_calls", 0)))
 
     def goal_for(self, ep: ObjectNavEpisode, word_type: str) -> LanguageGoal:
+        """The language goal of an episode: its command in the run language, parsed (or taken from the cache)."""
         cid, text = self.commands.command(ep.episode_id, self.lang, ep.goal_category)
         word, word_lang = self.commands.object_name(self.lang, ep.goal_category)
         self.backend.context.episode_id = ep.episode_id
@@ -239,6 +260,7 @@ class LanguageRun:
                               word_type=word_type, word=word, word_lang=word_lang)
 
     def attach(self, policy: ObjectNavPolicy, lg: LanguageGoal) -> None:
+        """Hand an episode's goal to the policy: detector queries and weights, rooms, and the verifier."""
         texts, weights = list(lg.hypotheses), list(lg.weights)
         if self.cfg["perception"]["detection"].get("add_target_name", False):      # D-072
             texts, weights = with_target_name(texts, weights, lg.target_en)
@@ -260,6 +282,7 @@ class LanguageRun:
         return self._local
 
     def manifest_extra(self) -> Dict[str, Any]:
+        """Language-side entries of the run manifest (backend, goal settings, commands, stop threshold)."""
         t = self.goals.translator
         return {"backend": self.backend.describe_config(), "goal": self.cfg["goal"], "lang": self.lang,
                 "verify": self.verify, "translator": t.describe_config() if t is not None else None,
@@ -333,14 +356,17 @@ class BenchmarkRunner:
 
     @property
     def episodes_csv(self) -> Path:
+        """Path of the run's ``episodes.csv``."""
         return self.out / "episodes.csv"
 
     @property
     def exclusions_csv(self) -> Path:
+        """Path of the run's ``exclusions.csv``."""
         return self.out / "exclusions.csv"
 
     @property
     def failures_csv(self) -> Path:
+        """Path of the run's ``failures.csv``."""
         return self.out / "failures.csv"
 
     def done_ids(self) -> set:
@@ -349,6 +375,14 @@ class BenchmarkRunner:
         return _csv_ids(self.episodes_csv) | _csv_ids(self.exclusions_csv) | given_up
 
     def run(self, episodes: Sequence[DatasetEpisode]) -> Dict[str, int]:
+        """Run all episodes not yet done, scene by scene, and return the counts.
+
+        Args:
+            episodes: The selected dataset episodes.
+
+        Returns:
+            Counts of episodes run, excluded, skipped because already done, and failed.
+        """
         done = self.done_ids()
         by_scene: Dict[str, List[DatasetEpisode]] = {}
         for de in episodes:
@@ -470,10 +504,12 @@ class BenchmarkRunner:
 
 
 def word_types_from(lexicon: Lexicon) -> Dict[str, str]:
+    """Word type (universal or cultural) of every lexicon category."""
     return {name: c.word_type for name, c in lexicon.categories.items()}
 
 
 def iter_scene_paths(episodes: Iterable[DatasetEpisode]) -> List[str]:
+    """Distinct scene paths of the episodes, in first-seen order."""
     seen: List[str] = []
     for e in episodes:
         if e.scene_path not in seen:

@@ -45,16 +45,19 @@ PILOT = REPO / "qolda check" / "data"
 
 
 def ci(k: int, n: int) -> str:
+    """Wilson estimate and 95% interval of ``k`` out of ``n`` as text."""
     c = wilson_ci(k, n)
     return f"{c.estimate:.3f} [{c.low:.2f}, {c.high:.2f}]"
 
 
 def lat_stats(xs):
+    """Median and 95th percentile of latencies as text."""
     a = np.asarray(xs, dtype=float)
     return f"median {np.median(a):.2f} s, p95 {np.percentile(a, 95):.2f} s (n={a.size})"
 
 
 def run_parse(args, cfg, backend, goals, calls) -> list:
+    """Parse the pilot commands and score target, hypotheses and leaks from the prompt's examples."""
     cmds = json.loads(Path(args.commands).read_text(encoding="utf-8"))
     lex = Lexicon.load(REPO / "lexicon" / "pilot_objects.yaml")
     # English objects of the prompt's own examples: a hypothesis naming one of them for another object is a leak (D-043)
@@ -98,6 +101,7 @@ _PHRASE_END = {"on", "in", "at", "near", "with", "of", "by", "under", "over", "i
 
 
 def head_noun(phrase: str) -> str:
+    """Head noun of an English phrase: the last word before a relative clause or prepositional phrase."""
     words = phrase.split()
     for i, w in enumerate(words):
         if w in _PHRASE_END and i > 0:
@@ -120,6 +124,7 @@ def hypothesis_match(hyps, names_en):
 
 
 def run_verify(args, cfg, spec, logger, out: Path) -> list:
+    """Ask the verification question about the pilot crops (per tile setting for Qolda)."""
     cat = {o["word_kk"]: o["category"] for o in json.loads((PILOT / "cultural_objects.json").read_text(encoding="utf-8"))}
     with open(args.manifest, encoding="utf-8-sig", newline="") as f:
         items = list(csv.DictReader(f))
@@ -150,6 +155,7 @@ def run_verify(args, cfg, spec, logger, out: Path) -> list:
 
 
 def main() -> None:
+    """Command-line entry point: ``parse`` or ``verify`` measurements with a report."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("task", choices=["parse", "verify"])
     ap.add_argument("--commands", default=str(PILOT / "commands_kk.json"))

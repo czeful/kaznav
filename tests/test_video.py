@@ -1,3 +1,4 @@
+"""Debug-video helpers: depth colouring, top-down map pixel mapping and frame composition."""
 import numpy as np
 import pytest
 

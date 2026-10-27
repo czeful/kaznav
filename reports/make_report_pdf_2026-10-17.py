@@ -50,10 +50,12 @@ FORMULA = ParagraphStyle("formula", parent=BODY, fontName="Arial", leftIndent=10
 
 
 def P(t, s=BODY):
+    """A body paragraph."""
     return Paragraph(t, s)
 
 
 def bullets(items, s=BUL):
+    """A bulleted list of paragraphs."""
     return [Paragraph(t, s, bulletText="•") for t in items]
 
 
@@ -88,6 +90,7 @@ def table(rows, widths, bold_rows=(), caption=None, num_cols=(), font=None, head
 
 
 def figure(path, width_cm, caption):
+    """An image scaled to ``width_cm`` with its caption, kept on one page."""
     from PIL import Image as PILImage
     w, h = PILImage.open(path).size
     img = Image(str(path), width=width_cm * cm, height=width_cm * cm * h / w)
@@ -100,9 +103,11 @@ class Diagram(Flowable):
     W, H = 515, 605
 
     def wrap(self, aw, ah):
+        """Fixed size of the diagram in points."""
         return self.W, self.H
 
     def box(self, c, cx, cy, w, h, text, neural=False, double=False):
+        """A centred box with a bold first line; neural components get a thick border."""
         x, y = cx - w / 2, cy - h / 2
         c.setLineWidth(1.7 if neural else 0.7)
         c.rect(x, y, w, h, stroke=1, fill=0)
@@ -118,6 +123,7 @@ class Diagram(Flowable):
             c.drawCentredString(cx, top - i * lh, ln)
 
     def arrow(self, c, pts, dashed=False, head=True):
+        """A polyline with an optional arrowhead at its end."""
         c.setLineWidth(0.8)
         c.setDash(3, 2) if dashed else c.setDash()
         p = c.beginPath()
@@ -138,11 +144,13 @@ class Diagram(Flowable):
             c.drawPath(h, stroke=0, fill=1)
 
     def label(self, c, x, y, text, align="left"):
+        """An italic label; ``|`` separates lines."""
         c.setFont("Arial-Italic", 6.6)
         for i, ln in enumerate(text.split("|")):
             (c.drawString if align == "left" else c.drawCentredString)(x, y - i * 7.6, ln)
 
     def draw(self):
+        """Draw the boxes and arrows of the pipeline."""
         c = self.canv
         c.setStrokeColor(BLACK)
         c.setFillColor(BLACK)
@@ -206,6 +214,7 @@ S = summary.set_index("Вариант")
 
 
 def sr(name):
+    """Success rate of an arm as ``"<percent>% (<successes>)"``."""
     r = S.loc[name]
     return f"{r['Успех, %']:.1f}% ({int(r['Успехов'])})"
 
@@ -622,6 +631,7 @@ story += [table([
 
 
 def on_page(canvas, doc):
+    """Page footer with the data note and the page number."""
     canvas.saveState()
     canvas.setFont("Arial", 7.5)
     canvas.setFillColor(BLACK)

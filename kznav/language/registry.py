@@ -33,6 +33,17 @@ def create_backend(
     prompt_root: Optional[Path] = None,
     sink: Optional[CallSink] = None,
 ) -> VLMBackend:
+    """Create the VLM backend described by a config block.
+
+    Args:
+        spec: The ``backend`` config block; ``type`` or ``class_path`` selects the class.
+        prompts: Prompt library to use; loaded from ``prompt_root`` (or the default root) if None.
+        prompt_root: Root directory of the prompt files.
+        sink: Receives one ``CallRecord`` per call.
+
+    Returns:
+        The backend; wrapped in ``ParseReplayBackend`` when the config has ``parse_replay`` (D-078).
+    """
     cls = BACKENDS.resolve(spec)
     lib = prompts or load_prompt_library(prompt_root)
     backend = cls(spec, lib, sink)  # type: ignore[call-arg]

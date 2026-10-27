@@ -32,6 +32,7 @@ from parse_speech_commands import summarize  # noqa: E402  (tools/ is the script
 
 
 def main() -> None:
+    """Command-line entry point: parse each transcript with the text model and write the summary."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--speech", required=True, help="a parse_speech_commands.py run made with --transcribe")
     ap.add_argument("--out", required=True)

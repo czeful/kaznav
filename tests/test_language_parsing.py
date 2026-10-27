@@ -1,3 +1,4 @@
+"""JSON extraction from model answers, the goal schema and option probabilities from log-probabilities."""
 import json
 import math
 

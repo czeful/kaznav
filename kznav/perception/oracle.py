@@ -15,11 +15,21 @@ from .base import DETECTORS, Detection, Detector
 
 @DETECTORS.register("oracle_semantic")
 class OracleSemanticDetector(Detector):
+    """Ground-truth detector from the semantic sensor: the navigation ceiling, never the method.
+
+    Args:
+        spec: Detector config; ``min_pixels`` is the smallest visible goal area reported.
+    """
     def __init__(self, spec: Mapping[str, Any]):
         super().__init__(spec)
         self.min_pixels = int(spec.get("min_pixels", 50))
 
     def detect(self, rgb: np.ndarray, queries: Sequence[str], aux: Optional[Mapping[str, Any]] = None) -> List[Detection]:
+        """One detection per visible goal instance (score 1, exact mask).
+
+        Raises:
+            ValueError: If ``aux`` lacks the semantic image or the goal ids.
+        """
         if not aux or aux.get("semantic") is None:
             raise ValueError("oracle_semantic needs aux['semantic'] and aux['goal_ids']")
         sem = np.asarray(aux["semantic"])

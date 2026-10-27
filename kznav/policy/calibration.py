@@ -25,22 +25,28 @@ def _logit_arr(p: np.ndarray, eps: float = 1e-6) -> np.ndarray:
 
 
 class Calibrator:
+    """Maps raw verifier probabilities to calibrated ones; serialisable to a dict."""
     kind = "base"
 
     def __call__(self, p: Sequence[float]) -> np.ndarray:  # pragma: no cover - interface
+        """Calibrate a sequence of raw probabilities."""
         raise NotImplementedError
 
     def to_dict(self) -> dict:  # pragma: no cover - interface
+        """Serialise the fitted calibrator."""
         raise NotImplementedError
 
 
 class IdentityCalibrator(Calibrator):
+    """No calibration: returns the raw probabilities (debug runs without an artifact)."""
     kind = "identity"
 
     def __call__(self, p: Sequence[float]) -> np.ndarray:
+        """Return the raw probabilities unchanged."""
         return np.asarray(p, dtype=float)
 
     def to_dict(self) -> dict:
+        """Serialise as ``{"kind": "identity"}``."""
         return {"kind": self.kind}
 
 
@@ -90,9 +96,11 @@ class PlattCalibrator(Calibrator):
         return cls(a, b)
 
     def __call__(self, p: Sequence[float]) -> np.ndarray:
+        """Apply ``sigmoid(a * logit(p) + b)``."""
         return expit(self.a * _logit_arr(np.asarray(p, dtype=float)) + self.b)
 
     def to_dict(self) -> dict:
+        """Serialise the fitted slope ``a`` and intercept ``b``."""
         return {"kind": self.kind, "a": self.a, "b": self.b}
 
 
@@ -107,6 +115,15 @@ class IsotonicCalibrator(Calibrator):
 
     @classmethod
     def fit(cls, p: Sequence[float], y: Sequence[bool]) -> "IsotonicCalibrator":
+        """Fit a non-decreasing step function by pool-adjacent-violators.
+
+        Args:
+            p: Raw probabilities.
+            y: Binary labels.
+
+        Returns:
+            The calibrator with two knots (left and right edge) per pooled block.
+        """
         order = np.argsort(np.asarray(p, dtype=float), kind="mergesort")
         xs = np.asarray(p, dtype=float)[order]
         ys = np.asarray(y, dtype=float)[order]
@@ -130,13 +147,20 @@ class IsotonicCalibrator(Calibrator):
         return cls(knots_x, knots_y)
 
     def __call__(self, p: Sequence[float]) -> np.ndarray:
+        """Interpolate the fitted step function linearly between knots."""
         return np.interp(np.asarray(p, dtype=float), self.x, self.y)
 
     def to_dict(self) -> dict:
+        """Serialise the knots."""
         return {"kind": self.kind, "x": self.x.tolist(), "y": self.y.tolist()}
 
 
 def calibrator_from_dict(d: dict) -> Calibrator:
+    """Rebuild a calibrator from its serialised form.
+
+    Raises:
+        ValueError: If the kind is unknown.
+    """
     kind = d["kind"]
     if kind == "identity":
         return IdentityCalibrator()
@@ -149,6 +173,7 @@ def calibrator_from_dict(d: dict) -> Calibrator:
 
 @dataclass(frozen=True)
 class ThresholdChoice:
+    """The chosen stop threshold and its precision, recall and F1 on the fitting data."""
     threshold: float
     objective: str
     precision: float
@@ -212,14 +237,21 @@ class CalibrationArtifact:
     extra: Dict[str, float] = field(default_factory=dict)
 
     def save(self, path: Path) -> None:
+        """Write the artifact as JSON (parent directories are created)."""
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(asdict(self), ensure_ascii=False, indent=2), encoding="utf-8")
 
     @classmethod
     def load(cls, path: Path) -> "CalibrationArtifact":
+        """Read an artifact written by ``save``."""
         return cls(**json.loads(Path(path).read_text(encoding="utf-8")))
 
     def assert_disjoint_from(self, eval_episode_ids: Sequence[str]) -> None:
+        """Refuse evaluation on episodes the calibration was fitted on.
+
+        Raises:
+            ValueError: If any evaluation episode id is among the artifact's dev episode ids.
+        """
         overlap = set(self.dev_episode_ids) & set(eval_episode_ids)
         if overlap:
             raise ValueError(
@@ -234,6 +266,7 @@ FITTERS = {"identity": lambda p, y: IdentityCalibrator(), "platt": PlattCalibrat
 
 @dataclass
 class StopRuleFit:
+    """A fitted stop rule: the calibrator, the threshold, the base rate and the fit diagnostics."""
     calibrator: Calibrator
     threshold: ThresholdChoice
     base_rate: float

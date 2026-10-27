@@ -26,6 +26,7 @@ from .noise import build_noise_models, reseed_noise_models
 
 @dataclass(frozen=True)
 class SceneSpec:
+    """Which scene the simulator loads, and an optional callback that adds objects to it."""
     scene_id: str                               # GLB path, a dataset scene handle, or "NONE"
     scene_dataset_config: Optional[str] = None
     #: Called after the simulator is created and before the navmesh is (re)computed;
@@ -35,6 +36,7 @@ class SceneSpec:
 
 @dataclass
 class Observation:
+    """One rendered observation with the pose it was taken from (see the field comments for the frames)."""
     rgb: np.ndarray
     depth: np.ndarray
     semantic: Optional[np.ndarray]
@@ -62,6 +64,7 @@ class Tick:
 
 
 def physics_config_json(emb: Mapping[str, Any]) -> Dict[str, Any]:
+    """Habitat physics config (Bullet, time step, gravity, scene friction) for the articulated robot."""
     phys = emb.get("physics") or {}
     return {
         "physics_simulator": "bullet",
@@ -73,6 +76,21 @@ def physics_config_json(emb: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 class HabitatEnv:
+    """Habitat-Sim wrapper for one scene and one embodiment (see the module docstring for the interface).
+
+    The wheeled robot is either articulated (Bullet wheels and contacts) or kinematic (its body on its own
+    navmesh, D-053); the standard agent takes discrete Habitat actions.
+
+    Args:
+        cfg: The run config (``embodiment`` and ``sim`` blocks are read).
+        scene: The scene to load.
+        workdir: Directory for generated files (URDF, physics config).
+        seed: Seed of the simulator and of the noise models.
+
+    Raises:
+        ValueError: If the embodiment's physics mode is unknown, or actuation noise is set for the point agent.
+        RuntimeError: If the stage physics override or the navmesh computation fails.
+    """
     def __init__(self, cfg: Mapping[str, Any], scene: SceneSpec, workdir: Path, seed: int = 0):
         import habitat_sim
 
@@ -189,6 +207,7 @@ class HabitatEnv:
                 "restitution": tpl.restitution_coefficient}
 
     def navmesh_settings(self):
+        """Navmesh settings of the embodiment (radius, height, max climb and slope, cell size)."""
         n = self.emb["navmesh"]
         s = self._hs.NavMeshSettings()
         s.set_defaults()
@@ -240,6 +259,19 @@ class HabitatEnv:
         self.robot.limiter.reset()
 
     def drive(self, v_cmd: float, w_cmd: float, n_ticks: int = 1) -> List[Tick]:
+        """Apply a twist command for ``n_ticks`` control ticks (wheeled robot only).
+
+        Args:
+            v_cmd: Commanded forward speed in m/s.
+            w_cmd: Commanded turn rate in rad/s (positive turns left).
+            n_ticks: Number of control ticks.
+
+        Returns:
+            One ``Tick`` per control tick, with pose, collision and odometry.
+
+        Raises:
+            RuntimeError: If the embodiment is the point agent.
+        """
         if self.base is not None:
             return self._drive_kinematic(v_cmd, w_cmd, n_ticks)
         if self.robot is None:
@@ -274,6 +306,11 @@ class HabitatEnv:
         return out
 
     def act(self, action: str) -> Tick:
+        """Take one discrete Habitat action (point agent only).
+
+        Raises:
+            RuntimeError: If the embodiment is the wheeled robot.
+        """
         if self.kind == "wheeled":
             raise RuntimeError("act() is for the point agent; the wheeled robot uses drive()")
         collided = bool(self.agent.act(action))  # navmesh sliding; observations are rendered in observe()
@@ -287,6 +324,7 @@ class HabitatEnv:
                     v_cmd=0.0, w_cmd=0.0, collision=collided)
 
     def observe(self) -> Observation:
+        """Render the sensors at the current pose (depth passes through the depth-noise model)."""
         if self.robot is not None:
             T = self.robot.camera_transform(self.emb["sensors"]["rgbd"]["mount"])
             self.agent.scene_node.transformation = T
@@ -362,6 +400,7 @@ class HabitatEnv:
         return self.sim.pathfinder if pathfinder is None else pathfinder
 
     def geodesic_distance(self, start: Sequence[float], goals: Sequence[Sequence[float]], pathfinder=None) -> float:
+        """Shortest navmesh distance from ``start`` to the nearest of ``goals`` (inf if none is reachable)."""
         path = self._hs.MultiGoalShortestPath()
         path.requested_start = np.asarray(start, dtype=np.float32)
         path.requested_ends = [np.asarray(g, dtype=np.float32) for g in goals]
@@ -370,6 +409,7 @@ class HabitatEnv:
         return float(path.geodesic_distance)
 
     def shortest_path(self, start: Sequence[float], goal: Sequence[float], pathfinder=None) -> List[np.ndarray]:
+        """Points of the shortest navmesh path from ``start`` to ``goal``; empty if unreachable."""
         path = self._hs.ShortestPath()
         path.requested_start = np.asarray(start, dtype=np.float32)
         path.requested_end = np.asarray(goal, dtype=np.float32)
@@ -378,13 +418,16 @@ class HabitatEnv:
         return [np.asarray(p, dtype=np.float64) for p in path.points]
 
     def snap(self, point: Sequence[float], pathfinder=None) -> np.ndarray:
+        """The navmesh point nearest to ``point`` (non-finite if there is none)."""
         pf = self._pf(pathfinder)
         return np.asarray(pf.snap_point(np.asarray(point, dtype=np.float32)), dtype=np.float64)
 
     def random_navigable_point(self, pathfinder=None) -> np.ndarray:
+        """A random point of the navmesh (seed the pathfinder for reproducibility)."""
         return np.asarray(self._pf(pathfinder).get_random_navigable_point(), dtype=np.float64)
 
     def navigable_area(self) -> float:
+        """Navigable area of the evaluation navmesh in square metres."""
         return float(self.sim.pathfinder.navigable_area)
 
     def semantic_objects(self) -> Dict[int, "SemanticObject"]:
@@ -404,6 +447,7 @@ class HabitatEnv:
         return out
 
     def close(self) -> None:
+        """Release the simulator."""
         self.sim.close()
 
 
@@ -413,6 +457,7 @@ def magnum_to_numpy(m: Any) -> np.ndarray:
 
 
 def pose_matrix(position: Sequence[float], q_wxyz: Sequence[float]) -> np.ndarray:
+    """4x4 world transform from a position and a ``(w, x, y, z)`` rotation quaternion."""
     w, x, y, z = (float(v) for v in q_wxyz)
     R = np.array([
         [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],

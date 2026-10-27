@@ -54,6 +54,16 @@ def episode_seed(run_seed: int, episode_id: str) -> int:
 
 
 class Executor:
+    """Turns policy decisions into robot motion for one embodiment.
+
+    The robot-vacuum follows the decision's path with the pure-pursuit controller for one decision period and
+    backs off when blocked; the standard agent takes discrete forward and turn actions. Both update the
+    localisation estimate on every tick.
+
+    Args:
+        env: The simulator.
+        cfg: The run config (embodiment, controller, recovery and executor blocks are read).
+    """
     def __init__(self, env: Any, cfg: Mapping[str, Any]):
         self.env = env
         self.cfg = cfg
@@ -84,6 +94,7 @@ class Executor:
             self.mark_collisions = bool(pe.get("mark_collisions", False))
 
     def reset(self) -> None:
+        """Clear the recovery state at the start of an episode."""
         self.no_progress = 0
         self.last_blocked = None
         self.repeats = 0

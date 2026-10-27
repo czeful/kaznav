@@ -43,6 +43,7 @@ E = html.escape
 
 
 def pct(x: float) -> str:
+    """A fraction as a whole percentage."""
     return f"{100 * x:.0f}%"
 
 
@@ -76,12 +77,14 @@ def sr_chart(rows) -> str:
 
 
 def table(headers, rows, cls="") -> str:
+    """An HTML table (cells are inserted as given, headers are escaped)."""
     th = "".join(f"<th>{E(h)}</th>" for h in headers)
     trs = "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>" for r in rows)
     return f'<div class="tbl"><table class="{cls}"><thead><tr>{th}</tr></thead><tbody>{trs}</tbody></table></div>'
 
 
 def verifier_counts(run_dir: Path):
+    """Confusion counts (TP, FN, FP, TN) of raw verifier answers at 0.5 against the privileged label."""
     tp = fn = fp = tn = 0
     f = run_dir / "events.jsonl"
     for line in open(f, encoding="utf-8"):
@@ -99,6 +102,7 @@ def verifier_counts(run_dir: Path):
 
 
 def main() -> None:
+    """Command-line entry point: build the HTML results page."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--compare", required=True)
     ap.add_argument("--parse", required=True)

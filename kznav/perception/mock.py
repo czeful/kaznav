@@ -11,7 +11,9 @@ from .base import DETECTORS, SEGMENTERS, VALUE_ENCODERS, Detection, Detector, Se
 
 @DETECTORS.register("none")
 class NoDetector(Detector):
+    """Detects nothing: exploration-only ablation and smoke runs."""
     def detect(self, rgb: np.ndarray, queries: Sequence[str], aux=None) -> List[Detection]:
+        """Return no detections."""
         return []
 
 
@@ -20,6 +22,7 @@ class BoxSegmenter(Segmenter):
     """Mask = the box itself. Also a legitimate ablation ("no segmentation")."""
 
     def segment(self, rgb: np.ndarray, box_xyxy: Sequence[float]) -> np.ndarray:
+        """Return the box itself as the mask, clipped to the image."""
         h, w = rgb.shape[:2]
         x1, y1, x2, y2 = (int(round(v)) for v in box_xyxy)
         mask = np.zeros((h, w), dtype=bool)
@@ -32,6 +35,7 @@ class HashValueEncoder(ValueEncoder):
     """Deterministic pseudo-scores in [0, 1] from (image bytes, text)."""
 
     def score(self, rgb: np.ndarray, texts: Sequence[str]) -> np.ndarray:
+        """Deterministic pseudo-relevance in [0, 1] per text, from a hash of the image bytes and the text."""
         img_h = hashlib.sha256(np.ascontiguousarray(rgb).tobytes()).hexdigest()
         out = []
         for t in texts:

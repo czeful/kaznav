@@ -12,6 +12,7 @@ from typing import Any, Mapping, Tuple
 
 @dataclass(frozen=True)
 class DriveLimits:
+    """Speed and acceleration limits of the drive (m/s, rad/s, m/s^2, rad/s^2)."""
     max_lin_vel: float
     max_ang_vel: float
     max_lin_acc: float
@@ -19,6 +20,7 @@ class DriveLimits:
 
     @classmethod
     def from_config(cls, limits: Mapping[str, Any]) -> "DriveLimits":
+        """Build from the ``embodiment.drive.limits`` config block."""
         return cls(
             max_lin_vel=float(limits["max_lin_vel_mps"]),
             max_ang_vel=float(limits["max_ang_vel_radps"]),
@@ -40,9 +42,15 @@ class VelocityLimiter:
         self.w = 0.0
 
     def reset(self) -> None:
+        """Bring the limited twist back to rest (start of an episode)."""
         self.v = self.w = 0.0
 
     def step(self, v_cmd: float, w_cmd: float, dt: float) -> Tuple[float, float]:
+        """Advance one control tick and return the limited twist ``(v, w)``.
+
+        Raises:
+            ValueError: If ``dt`` is not positive.
+        """
         if dt <= 0:
             raise ValueError("dt must be positive")
         L = self.limits

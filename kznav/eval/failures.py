@@ -20,6 +20,7 @@ from typing import Mapping, Optional
 
 
 class Termination(str, Enum):
+    """Why an episode ended, as reported by the episode runner."""
     STOP_CALLED = "stop_called"
     STEP_LIMIT = "step_limit"              # decision-step / sim-time budget exhausted
     NO_FRONTIERS = "no_frontiers"          # nothing left to explore, no stop called
@@ -31,6 +32,7 @@ class Termination(str, Enum):
 
 
 class Outcome(str, Enum):
+    """Exactly one outcome class per episode, used in the stage tables and the paper (D-045)."""
     SUCCESS = "success"
     FALSE_STOP = "false_stop"              # stopped at an object that is not a goal instance
     STOP_TOO_FAR = "stop_too_far"          # stopped at a goal instance but outside the success region
@@ -46,6 +48,7 @@ class Outcome(str, Enum):
 
 @dataclass(frozen=True)
 class OutcomeInputs:
+    """The facts about a finished episode that ``classify_episode`` needs."""
     termination: Termination
     success: bool
     #: Ground truth for the candidate the robot stopped at: True if it is an
@@ -54,6 +57,17 @@ class OutcomeInputs:
 
 
 def classify_episode(x: OutcomeInputs) -> Outcome:
+    """Assign the single outcome class of a finished episode.
+
+    Args:
+        x: Termination reason, success flag and the ground truth of the stop candidate.
+
+    Returns:
+        The outcome; a stop is split into success, false stop, stop too far or unlabeled stop.
+
+    Raises:
+        ValueError: If the inputs are inconsistent (e.g. success without a stop call).
+    """
     if x.success:
         if x.termination is not Termination.STOP_CALLED:
             raise ValueError(f"success without a stop call (termination={x.termination.value})")
@@ -107,6 +121,7 @@ STAGE_ORDER = (Stage.QUERY, Stage.NOT_SEEN, Stage.NOT_DETECTED, Stage.VERIFY_REJ
 
 @dataclass(frozen=True)
 class AttributionInputs:
+    """The facts about a finished episode that ``attribute_failure`` needs to place it at one failure stage."""
     success: bool
     termination: Termination
     stop_candidate_is_goal: Optional[bool] = None

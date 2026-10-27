@@ -35,11 +35,13 @@ from kznav.sim.objectnav_dataset import (balanced_subset, load_objectnav_v1, pic
 
 
 def wilson_halfwidth(p: float, n: int) -> float:
+    """Half-width of the 95% Wilson interval at proportion ``p`` and size ``n``."""
     z = 1.96
     return z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
 
 
 def main() -> None:
+    """Command-line entry point: write a dev or test subset of episode ids."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("kind", choices=["dev", "test"])
     ap.add_argument("--dataset", required=True, help="dataset config name, e.g. hm3d_objectnav_v1_val")

@@ -68,6 +68,7 @@ class EpisodeGeometry:
 
 @dataclass(frozen=True)
 class EpisodeMetrics:
+    """The standard ObjectNav metrics of one episode (see the module docstring for the definitions)."""
     success: bool
     spl: float
     soft_spl: float
@@ -89,6 +90,11 @@ def _efficiency(l: float, p: float) -> float:
 
 
 def is_success(g: EpisodeGeometry, rule: SuccessRule) -> bool:
+    """Return True if the robot called stop within the success distance (and, if required, saw the goal).
+
+    Raises:
+        ValueError: If the rule requires visibility at the stop but it is unknown.
+    """
     if not g.called_stop:
         return False
     if not g.final_geodesic < rule.success_distance:  # also False for NaN / inf
@@ -101,11 +107,26 @@ def is_success(g: EpisodeGeometry, rule: SuccessRule) -> bool:
 
 
 def spl(success: bool, start_geodesic: float, path_len: float) -> float:
+    """Success weighted by path length: ``success * l / max(l, p)``.
+
+    Args:
+        success: Whether the episode succeeded.
+        start_geodesic: Shortest-path distance ``l`` from the start to the nearest goal view point.
+        path_len: Distance ``p`` actually travelled.
+
+    Raises:
+        ValueError: If ``l`` is not finite and positive or ``p`` is negative.
+    """
     _check_start_geodesic(start_geodesic)
     return float(success) * _efficiency(start_geodesic, path_len)
 
 
 def soft_spl(start_geodesic: float, path_len: float, final_geodesic: float) -> float:
+    """SoftSPL: ``max(0, 1 - d_T / l) * l / max(l, p)``, partial credit for ending closer to the goal.
+
+    Raises:
+        ValueError: If ``l`` is invalid, ``p`` is negative or ``d_T`` is NaN.
+    """
     _check_start_geodesic(start_geodesic)
     if math.isnan(final_geodesic):
         raise ValueError("final_geodesic is NaN")
@@ -121,6 +142,15 @@ def dts(final_geodesic: float, success_distance: float) -> float:
 
 
 def compute_episode_metrics(g: EpisodeGeometry, rule: SuccessRule) -> EpisodeMetrics:
+    """Compute all standard metrics of one finished episode.
+
+    Args:
+        g: Start and final geodesic distances, path length and the stop flag.
+        rule: Success distance and visibility requirement.
+
+    Returns:
+        Success, SPL, SoftSPL, DTS and the distances.
+    """
     ok = is_success(g, rule)
     return EpisodeMetrics(
         success=ok,

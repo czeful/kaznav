@@ -40,19 +40,23 @@ class BackendError(RuntimeError):
 
 
 class TransportError(BackendError):
+    """The server could not be reached or answered with an HTTP error; never counted as a model answer."""
     pass
 
 
 class InvalidOutputError(BackendError):
+    """The model answered, but the answer stayed invalid after all retries (e.g. no valid goal JSON)."""
     pass
 
 
 class BackendConfigError(ValueError):
+    """A backend, prompt or translator config is incomplete or inconsistent."""
     pass
 
 
 @dataclass(frozen=True)
 class BackendCapabilities:
+    """What a backend can do: log-probabilities, image input, context size, and cost per call."""
     supports_logprobs: bool
     supports_images: bool
     max_context_tokens: Optional[int]
@@ -62,6 +66,7 @@ class BackendCapabilities:
 
     @classmethod
     def from_spec(cls, spec: Mapping[str, Any]) -> "BackendCapabilities":
+        """Build from the ``capabilities`` block of a backend config."""
         return cls(
             supports_logprobs=bool(spec["supports_logprobs"]),
             supports_images=bool(spec["supports_images"]),
@@ -72,6 +77,7 @@ class BackendCapabilities:
 
 @dataclass
 class CallContext:
+    """Where a call was made: run id, episode id, decision step, and whether it is a warm-up call."""
     run_id: str = ""
     episode_id: str = ""
     step: int = -1
@@ -80,6 +86,7 @@ class CallContext:
 
 @dataclass
 class Attempt:
+    """One HTTP request or one JSON validation attempt within a call, with its timing and outcome."""
     kind: str                       # "http" | "json"
     started_utc: str
     latency_s: float
@@ -92,6 +99,12 @@ class Attempt:
 
 @dataclass
 class CallRecord:
+    """The full audit record of one model call, written to ``vlm_calls.jsonl``.
+
+    It holds the method, backend, model, prompt reference and SHA-256, the replay key, the inputs, every attempt with
+    the raw server response, retry counts, the validated output or the error, and the measured latency. Input images
+    are kept as lossless PNG bytes and stored next to the log by the sink.
+    """
     method: str
     backend: str
     model_id: str
@@ -113,6 +126,7 @@ class CallRecord:
     images: List[bytes] = field(default_factory=list, repr=False)
 
     def to_json_dict(self) -> Dict[str, Any]:
+        """Return the record as a JSON-ready dict (images excluded; the sink stores them as files)."""
         d = asdict(self)
         d.pop("images")
         d["type"] = "vlm_call"
@@ -129,6 +143,7 @@ class ListSink:
         self.records: List[CallRecord] = []
 
     def __call__(self, rec: CallRecord) -> None:
+        """Append the record."""
         self.records.append(rec)
 
 
@@ -139,11 +154,13 @@ class TeeSink:
         self.sinks = sinks
 
     def __call__(self, rec: CallRecord) -> None:
+        """Pass the record to every sink in order."""
         for s in self.sinks:
             s(rec)
 
 
 def utc_now() -> str:
+    """Current UTC time in ISO 8601 with milliseconds."""
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
@@ -157,6 +174,11 @@ def image_digest(image: np.ndarray) -> str:
 
 
 def input_key(method: str, prompt_sha256: str, inputs: Mapping[str, Any]) -> str:
+    """Replay key of a call: SHA-256 of the method, the prompt's hash and the canonical JSON of the inputs.
+
+    A changed prompt or a different input image gives a different key, so a replay can never reuse an answer
+    recorded for something else.
+    """
     payload = json.dumps({"method": method, "prompt": prompt_sha256, "inputs": inputs},
                          ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -180,15 +202,42 @@ class VLMBackend(ABC):
         self.describe_prompt: PromptTemplate = prompts.load(p["describe"])
 
     # ------------------------------------------------------------------ contract
+    # What the backend offers (log-probabilities, images, context size, cost); recorded in the run manifest.
     @property
     @abstractmethod
     def capabilities(self) -> BackendCapabilities: ...
 
     def parse_goal(self, text: str, lang: str) -> GoalHypotheses:
+        """Parse a natural-language command into the target and weighted English visual hypotheses.
+
+        Args:
+            text: The command as given to the robot.
+            lang: Command language code (``kk``, ``kk_ru``, ``en``, ...).
+
+        Returns:
+            The validated, normalised goal.
+
+        Raises:
+            TransportError: If the server cannot be reached.
+            InvalidOutputError: If no valid goal JSON was produced within the retry budget.
+        """
         rec = self._begin("parse_goal", self.parse_prompt, {"text": text, "lang": lang})
         return self._run(rec, lambda: self._parse_goal(text, lang, rec), lambda out: out.model_dump())
 
     def verify_candidate(self, image: np.ndarray, query: VerifyQuery) -> VerificationResult:
+        """Ask whether an image crop shows the target.
+
+        Args:
+            image: HxWx3 uint8 crop.
+            query: Target name and the language of the question.
+
+        Returns:
+            The uncalibrated P(yes) (when available), its source and the answer text.
+
+        Raises:
+            TransportError: If the server cannot be reached.
+            InvalidOutputError: If the answer stayed unusable after retries.
+        """
         inputs = {"image": {"sha256": image_digest(image), "shape": list(image.shape)},
                   "target": query.target, "lang": query.lang}
         rec = self._begin("verify_candidate", self.verify_prompt, inputs)
@@ -196,6 +245,7 @@ class VLMBackend(ABC):
         return self._run(rec, lambda: self._verify(image, query, rec), lambda out: out.as_dict())
 
     def describe(self, image: np.ndarray, prompt: str) -> str:
+        """Free-text description of an image for diagnostics; not used by the navigation policy."""
         inputs = {"image": {"sha256": image_digest(image), "shape": list(image.shape)}, "prompt": prompt}
         rec = self._begin("describe", self.describe_prompt, inputs)
         rec.images.append(encode_image(image, "png"))
@@ -266,4 +316,5 @@ class VLMBackend(ABC):
 
 
 def load_prompt_library(root: Optional[Path] = None) -> PromptLibrary:
+    """Prompt library rooted at ``root`` (default: the repository's ``prompts/`` directory)."""
     return PromptLibrary(root or Path(__file__).resolve().parents[2] / "prompts")

@@ -1,3 +1,4 @@
+"""Prompt files (loading, hashing, schema, few-shot examples, message building) and the lexicons (matching)."""
 import json
 
 import pytest

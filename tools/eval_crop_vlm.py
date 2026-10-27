@@ -34,6 +34,7 @@ from kznav.run.config import compose_config  # noqa: E402
 
 
 def sample_crops(out: Path, n: int, seed: int) -> pd.DataFrame:
+    """A fixed, balanced sample of labelled verifier crops (created once, then read from ``sample.csv``)."""
     path = out / "sample.csv"
     if path.exists():
         return pd.read_csv(path)
@@ -49,6 +50,7 @@ def sample_crops(out: Path, n: int, seed: int) -> pd.DataFrame:
 
 
 def server_stats(base_url: str) -> dict:
+    """The model server's memory statistics, or the error if they cannot be read."""
     import httpx
 
     try:
@@ -58,6 +60,7 @@ def server_stats(base_url: str) -> dict:
 
 
 def summarize(out: Path) -> str:
+    """Rates of every model asked so far, per embodiment, with server peak memory; written to ``summary.md``."""
     rows, mem = [], {}
     for f in sorted(out.glob("*.csv")):
         if f.name == "sample.csv":
@@ -80,6 +83,7 @@ def summarize(out: Path) -> str:
 
 
 def main() -> None:
+    """Command-line entry point: ask the configured VLM about the remaining crops, then summarise."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=str(REPO / "runs/verifier_bench/vlm_same_crops"))
     ap.add_argument("--n", type=int, default=2000, help="crops in the shared sample (half goal)")

@@ -39,6 +39,7 @@ VLFM_NAMES = {"chair": "chair", "bed": "bed", "plant": "potted plant", "toilet":
 
 
 def frames(per_ep_pos: int, per_ep_neg: int) -> None:
+    """Render robot-camera frames of dev episodes: poses where the oracle saw the goal and poses where it did not."""
     from PIL import Image
 
     from kznav.run.benchmark import lookup_object
@@ -96,6 +97,7 @@ def frames(per_ep_pos: int, per_ep_neg: int) -> None:
 
 
 def parse(backend_name: str) -> None:
+    """Parse the dev commands with one backend and save the hypotheses."""
     from kznav.language.base import ListSink
     from kznav.language.commands import load_commands
     from kznav.language.goal import GoalCache
@@ -122,6 +124,7 @@ def parse(backend_name: str) -> None:
 
 
 def detect() -> None:
+    """Score each frame with GroundingDINO for the bare label, the VLFM name and the parsed hypotheses."""
     from PIL import Image
 
     from kznav.perception.base import create_detector
@@ -156,6 +159,7 @@ def detect() -> None:
 
 
 def report() -> None:
+    """Detection rates and median scores per query family, written to ``report.md``."""
     import pandas as pd
 
     items = {it["image"]: it for it in json.loads((OUT / "manifest.json").read_text(encoding="utf-8"))}

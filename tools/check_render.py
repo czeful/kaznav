@@ -15,6 +15,7 @@ import time
 
 
 def main() -> None:
+    """Command-line entry point: render frames, step physics, save an image and print the GL renderer."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--scene", default=None, help="GLB scene; default: habitat-sim test asset simple_room.glb")
     ap.add_argument("--out", default="render_check.png")

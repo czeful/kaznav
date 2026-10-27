@@ -70,6 +70,7 @@ PAIRS = [  # (a, b, вопрос)
 
 
 def wilson(k: int, n: int, z: float = 1.96):
+    """95% Wilson interval of ``k`` out of ``n``, in percent."""
     p = k / n
     d = 1 + z * z / n
     c = (p + z * z / (2 * n)) / d
@@ -78,6 +79,7 @@ def wilson(k: int, n: int, z: float = 1.96):
 
 
 def mcnemar(a: pd.Series, b: pd.Series):
+    """Discordant counts (only A, only B) and the exact two-sided McNemar p-value of two success series."""
     oa, ob = int((a & ~b).sum()), int((~a & b).sum())
     n = oa + ob
     p = min(1.0, 2 * sum(math.comb(n, i) for i in range(min(oa, ob) + 1)) / 2 ** n) if n else 1.0
@@ -85,10 +87,12 @@ def mcnemar(a: pd.Series, b: pd.Series):
 
 
 def load(key: str) -> pd.DataFrame:
+    """An arm's ``episodes.csv`` indexed by episode id."""
     return pd.read_csv(RUNS / key / "seed0" / "episodes.csv").set_index("episode_id").sort_index()
 
 
 def main() -> None:
+    """Build the stage-A tables; all arms must have run the same episodes."""
     OUT.mkdir(parents=True, exist_ok=True)
     data = {k: load(k) for k in ARMS}
     ids = set(data["vlfm_en"].index)

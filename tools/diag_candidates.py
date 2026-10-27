@@ -67,6 +67,7 @@ class CandidateLog:
         return float(b.mean()) if b.size else None
 
     def __call__(self, *, obs, decision, policy, trace, step, episode):
+        """Log one decision step: goal visibility, detections, every candidate's state and the verification."""
         if self.video is not None:
             self.video(obs=obs, decision=decision, policy=policy, trace=trace, step=step, episode=episode)
         if not self.wrote_header:
@@ -95,6 +96,7 @@ class CandidateLog:
         self.f.write(json.dumps(rec) + "\n")
 
     def close(self) -> None:
+        """Close the log file and the optional video."""
         self.f.close()
         if self.video is not None:
             self.video.close()
@@ -106,6 +108,7 @@ def _hash_order(ids: List[str], seed: int = 0) -> List[str]:
 
 
 def cmd_run(args: argparse.Namespace) -> None:
+    """Re-run selected episodes of a dev matrix cell with the per-step candidate log."""
     from kznav.language.lexicon import Lexicon
     from kznav.report.episode_video import EpisodeVideo
     from kznav.run.benchmark import BenchmarkRunner, LanguageRun, word_types_from
@@ -220,6 +223,7 @@ def explain(lines: List[Dict[str, Any]], header: Dict[str, Any], goal_radius: fl
 
 
 def cmd_report(args: argparse.Namespace) -> None:
+    """Explain each logged episode's failure and write ``report.md`` with confidence thresholds."""
     d = Path(args.dir)
     eps = pd.read_csv(d / "episodes.csv").set_index("episode_id") if (d / "episodes.csv").exists() else None
     rows, thr = [], float("nan")
@@ -251,6 +255,7 @@ def cmd_report(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    """Command-line entry point: ``run`` or ``report``."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")

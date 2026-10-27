@@ -55,26 +55,40 @@ def frame_correction(true_pose: Pose, est_pose: Pose) -> np.ndarray:
 
 
 class GroundTruthLocalizer:
+    """Gives the policy the simulator's true pose (standard ObjectNav GPS+compass)."""
     mode = "ground_truth"
 
     def __init__(self) -> None:
         self.pose: Optional[Pose] = None
 
     def reset(self, true_pose: Pose, seed: Optional[int] = None) -> None:
+        """Start an episode at ``true_pose`` (the seed is unused)."""
         self.pose = tuple(true_pose)
 
     def tick(self, t: Any) -> Pose:
+        """Take the tick's true pose."""
         self.pose = tuple(t.pose)
         return self.pose
 
     def observation(self, obs: Any) -> Any:
+        """Return the observation unchanged."""
         return obs
 
     def error(self, true_pose: Pose) -> Tuple[float, float]:
+        """Always ``(0, 0)``: the estimate is the true pose."""
         return 0.0, 0.0
 
 
 class OdometryLocalizer:
+    """Dead-reckons the pose from the known start pose (see the module docstring).
+
+    Args:
+        drift: Odometry drift model applied to every increment.
+        source: ``wheel_encoders`` (integrate the tick's odometry twist) or ``true_increment``.
+
+    Raises:
+        ValueError: If ``source`` is unknown.
+    """
     mode = "odometry"
 
     def __init__(self, drift: Any, source: str = "wheel_encoders"):
@@ -86,6 +100,7 @@ class OdometryLocalizer:
         self._last_t = 0.0
 
     def reset(self, true_pose: Pose, seed: Optional[int] = None) -> None:
+        """Start an episode at the known ``true_pose``; ``seed`` re-seeds the drift model."""
         if seed is not None:
             self.drift.reseed(seed)
         self.pose = tuple(true_pose)              # the start pose is known (as on a robot that starts at its dock)
@@ -93,6 +108,7 @@ class OdometryLocalizer:
         self._last_t = 0.0
 
     def tick(self, t: Any) -> Pose:
+        """Integrate one tick's increment (with drift) and return the estimated pose."""
         dt = max(0.0, float(t.t) - self._last_t)
         if self.source == "wheel_encoders" and getattr(t, "odom_twist", None) is not None and dt > 0:
             v, w = t.odom_twist
@@ -117,6 +133,18 @@ class OdometryLocalizer:
 
 
 def make_localizer(emb: Mapping[str, Any], drift: Any):
+    """Create the localizer selected by ``embodiment.localization``.
+
+    Args:
+        emb: The embodiment config.
+        drift: Odometry drift model (used by the odometry localizer only).
+
+    Returns:
+        A ``GroundTruthLocalizer`` or an ``OdometryLocalizer``.
+
+    Raises:
+        ValueError: If the localization mode is unknown.
+    """
     mode = str(emb.get("localization", "ground_truth"))
     if mode == "ground_truth":
         return GroundTruthLocalizer()

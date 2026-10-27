@@ -13,14 +13,17 @@ import numpy as np
 
 
 def habitat_to_map(p: Sequence[float]) -> Tuple[float, float]:
+    """Map-frame ``(x, y)`` of a Habitat world point."""
     return float(p[0]), float(-p[2])
 
 
 def map_to_habitat(x: float, y: float, height: float = 0.0) -> np.ndarray:
+    """Habitat world point of a map-frame ``(x, y)`` at the given height."""
     return np.array([x, height, -y], dtype=np.float64)
 
 
 def quat_rotate(q_wxyz: Sequence[float], v: Sequence[float]) -> np.ndarray:
+    """Rotate a 3-D vector by a ``(w, x, y, z)`` unit quaternion."""
     w, x, y, z = (float(c) for c in q_wxyz)
     qv = np.array([x, y, z])
     vv = np.asarray(v, dtype=float)
@@ -41,4 +44,5 @@ def quat_from_yaw(yaw: float) -> Tuple[float, float, float, float]:
 
 
 def wrap_angle(a: float) -> float:
+    """Wrap an angle to [-pi, pi)."""
     return (a + math.pi) % (2 * math.pi) - math.pi

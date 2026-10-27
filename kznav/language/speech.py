@@ -25,6 +25,7 @@ SAMPLE_RATE = 16000
 
 @dataclass(frozen=True)
 class SpeechClip:
+    """One command recording, loaded and resampled, with its provenance."""
     path: str
     speaker: str
     command_id: str
@@ -35,9 +36,11 @@ class SpeechClip:
 
     @property
     def duration_s(self) -> float:
+        """Length of the clip in seconds."""
         return len(self.audio) / SAMPLE_RATE
 
     def describe(self) -> Dict[str, object]:
+        """Provenance of the clip for the call record (path, speaker, command, hash, duration, file rate)."""
         return {"path": self.path, "speaker": self.speaker, "command_id": self.command_id, "lang": self.lang,
                 "sha256": self.sha256, "duration_s": round(self.duration_s, 3), "file_rate": self.file_rate}
 
@@ -90,6 +93,7 @@ def write_wav(path: Path, audio: np.ndarray, rate: int = SAMPLE_RATE) -> None:
 
 
 def clip_path(root: Path, speaker: str, command_id: str, lang: str) -> Path:
+    """Path of a recording: ``<root>/<speaker>/<command id>__<lang>.wav``."""
     return Path(root) / speaker / f"{command_id}__{lang}.wav"
 
 
@@ -116,12 +120,23 @@ class SpeechBank:
         return cls(root, speaker, {(c.id, lang): t for c in commands for lang, t in c.texts.items() if t.strip()})
 
     def command_id(self, text: str, lang: str) -> str:
+        """The command id whose text in ``lang`` equals ``text`` (after normalisation).
+
+        Raises:
+            KeyError: If no command has this text.
+        """
         cid = self._ids.get((lang, normalize(text)))
         if cid is None:
             raise KeyError(f"no command with this {lang} text in the command bank: {text!r}")
         return cid
 
     def clip(self, text: str, lang: str) -> SpeechClip:
+        """The recording of the command with this text, loaded once and cached.
+
+        Raises:
+            KeyError: If no command has this text.
+            FileNotFoundError: If the speaker has no recording of the command.
+        """
         cid = self.command_id(text, lang)
         if (cid, lang) not in self._cache:
             path = clip_path(self.root, self.speaker, cid, lang)
@@ -133,5 +148,6 @@ class SpeechBank:
         return self._cache[(cid, lang)]
 
     def available(self, command_id: str, lang: str) -> Optional[Path]:
+        """Path of the recording of a command, or None if the speaker has not recorded it."""
         p = clip_path(self.root, self.speaker, command_id, lang)
         return p if p.is_file() else None

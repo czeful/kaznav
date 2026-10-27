@@ -26,6 +26,7 @@ PAIR = ("dataset", "split", "episode_id")
 
 
 def fmt_ci(est, lo, hi, pct=False):
+    """Format an estimate with its confidence interval (as a percentage if ``pct``)."""
     if pct:
         return f"{100 * est:.0f}% [{100 * lo:.0f}, {100 * hi:.0f}]"
     return f"{est:.3f} [{lo:.2f}, {hi:.2f}]"
@@ -58,6 +59,7 @@ def verifier_stats(run_dir: Path) -> dict:
 
 
 def arm_row(label: str, g: pd.DataFrame, manifest: dict, run_dir: Path) -> dict:
+    """One row of the comparison table for an arm: SR and SPL with CIs, funnel, outcomes, model calls, timing."""
     n = len(g)
     sr = wilson_ci(int(g.success.sum()), n)
     spl = mean_ci(g.spl.astype(float).to_numpy(), n_boot=5000)
@@ -86,6 +88,7 @@ def arm_row(label: str, g: pd.DataFrame, manifest: dict, run_dir: Path) -> dict:
 
 
 def main() -> None:
+    """Command-line entry point: per-arm table and paired contrasts against the reference arm."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("arms", nargs="+", help="label=run_dir")
     ap.add_argument("--ref", required=True, help="reference arm label for the paired contrasts")

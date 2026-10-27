@@ -13,6 +13,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 
 @dataclass(frozen=True)
 class Box:
+    """One ``cubeSolid`` box of an arena: centre and half extents in metres (Habitat world frame), static or dynamic."""
     center: Tuple[float, float, float]
     half_extents: Tuple[float, float, float]
     static: bool = True
@@ -22,6 +23,11 @@ class Box:
 
 
 def add_box(sim: Any, box: Box):
+    """Add a box to the simulator and return the rigid object.
+
+    The transform is set before the motion type, so a static box's collision shape is where the box is (see
+    the module docstring).
+    """
     import magnum as mn
     from habitat_sim.physics import MotionType
 

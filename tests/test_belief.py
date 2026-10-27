@@ -1,3 +1,4 @@
+"""Hypothesis belief, candidate evidence and the calibrators of the stop rule (kznav.policy.belief, .calibration)."""
 import numpy as np
 import pytest
 

@@ -36,6 +36,18 @@ SHEET_COLUMNS = ["id", "category", "word_type", "hint_kk", "hint_ru", "hint_en",
 
 
 def sheet(lexicon: Path, authors, per_category: int, dev_per_category: int, out: Path) -> int:
+    """Write an empty authoring sheet (CSV): rows per category and author with dictionary hints.
+
+    Args:
+        lexicon: Lexicon file of the categories.
+        authors: Anonymised author ids, assigned round-robin.
+        per_category: Rows per category.
+        dev_per_category: How many of them go to the dev split (the rest to test).
+        out: Output CSV path.
+
+    Returns:
+        The number of rows written.
+    """
     lex = Lexicon.load(REPO / lexicon if not lexicon.is_absolute() else lexicon)
     rows = []
     for cat in lex.categories.values():
@@ -58,6 +70,22 @@ def sheet(lexicon: Path, authors, per_category: int, dev_per_category: int, out:
 
 def import_sheet(src: Path, dataset: str, lexicon: str, out: Path, min_reviews: int,
                  languages=("kk", "kk_ru", "en")) -> int:
+    """Import a filled sheet into the YAML command bank, deriving each command's review status.
+
+    A command is ``rejected`` if any review rejects it, ``approved`` with at least ``min_reviews`` ``ok`` reviews by
+    someone other than the author and no ``fix``, and ``draft`` otherwise. Rows without any text are skipped.
+
+    Args:
+        src: The filled sheet (CSV).
+        dataset: Dataset the bank belongs to.
+        lexicon: Lexicon path recorded in the bank.
+        out: Output YAML path.
+        min_reviews: Independent ``ok`` reviews needed for approval.
+        languages: Language columns to import.
+
+    Returns:
+        The number of commands imported.
+    """
     df = pd.read_csv(src, dtype=str, encoding="utf-8-sig").fillna("")
     missing = {"id", "category", "author", "split", *languages} - set(df.columns)
     if missing:
@@ -87,6 +115,7 @@ def import_sheet(src: Path, dataset: str, lexicon: str, out: Path, min_reviews: 
 
 
 def validate(bank: Path, min_test: int) -> int:
+    """Print a bank's coverage and validation issues; return 1 if there are errors, else 0."""
     nc = NaturalCommands(bank, REPO, role="debug")
     issues = nc.validate(categories=list(nc.lexicon.categories), min_test_per_category=min_test)
     cov = pd.DataFrame(nc.coverage())
@@ -101,6 +130,7 @@ def validate(bank: Path, min_test: int) -> int:
 
 
 def export(bank: Path, out: Path) -> int:
+    """Write a bank back to the sheet format (CSV) for review; return the number of rows."""
     nc = NaturalCommands(bank, REPO, role="debug")
     rows = []
     for c in nc.commands:
@@ -117,6 +147,7 @@ def export(bank: Path, out: Path) -> int:
 
 
 def main() -> None:
+    """Command-line entry point: ``sheet``, ``import``, ``validate`` or ``export``."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("sheet")

@@ -27,6 +27,7 @@ def server_stats(base_url: str, reset_peak: bool = False) -> Optional[Dict[str, 
 
 
 def gpu_total_gb() -> Optional[float]:
+    """Total memory of CUDA device 0 in GiB, or None without torch or CUDA."""
     try:
         import torch
 

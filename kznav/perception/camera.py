@@ -15,6 +15,7 @@ import numpy as np
 
 @dataclass(frozen=True)
 class Intrinsics:
+    """Pinhole intrinsics in pixels: focal lengths, principal point and image size."""
     fx: float
     fy: float
     cx: float
@@ -24,6 +25,7 @@ class Intrinsics:
 
     @classmethod
     def from_hfov(cls, hfov_deg: float, width: int, height: int) -> "Intrinsics":
+        """Intrinsics of a camera with square pixels from its horizontal field of view and image size."""
         fx = (width / 2.0) / math.tan(math.radians(hfov_deg) / 2.0)
         return cls(fx, fx, width / 2.0, height / 2.0, int(width), int(height))
 
@@ -51,4 +53,5 @@ def backproject(depth: np.ndarray, K: Intrinsics, v: np.ndarray, u: np.ndarray) 
 
 
 def to_world(p_cam: np.ndarray, T_world_cam: np.ndarray) -> np.ndarray:
+    """Transform camera-frame points (N, 3) to the world frame with the 4x4 camera pose ``T_world_cam``."""
     return p_cam @ T_world_cam[:3, :3].T + T_world_cam[:3, 3]

@@ -29,6 +29,7 @@ DEFAULT_CONTENT_PATH = "{data_path}/content/{scene}.json.gz"
 
 @dataclass
 class DatasetGoal:
+    """One goal object of a dataset episode, with the standard agent's view points."""
     object_id: str                   # instance id in the scene's semantic annotation
     category: str
     position: List[float]
@@ -39,6 +40,7 @@ class DatasetGoal:
 
 @dataclass
 class DatasetEpisode:
+    """One episode of a habitat-lab ObjectNav v1 split, as stored in the dataset."""
     episode_id: str                  # "<scene stem>:<index in the content file>"
     dataset: str
     split: str
@@ -53,10 +55,12 @@ class DatasetEpisode:
 
     @property
     def scene_stem(self) -> str:
+        """Scene name without directories and extensions."""
         return scene_stem(self.scene_id)
 
     @property
     def start_yaw(self) -> float:
+        """Map-frame heading of the start rotation."""
         x, y, z, w = self.start_rotation_xyzw
         return yaw_from_quat((w, x, y, z))
 
@@ -72,6 +76,7 @@ def _read_json_gz(path: Path) -> Dict[str, Any]:
 
 
 def resolve_scene_path(scene_id: str, scene_root: Path) -> str:
+    """Scene file path under ``scene_root`` (habitat-lab's ``data/scene_datasets/`` prefix removed)."""
     sid = scene_id[len(DEFAULT_SCENE_PATH_PREFIX):] if scene_id.startswith(DEFAULT_SCENE_PATH_PREFIX) else scene_id
     return str(Path(scene_root) / sid)
 
@@ -132,6 +137,11 @@ def load_objectnav_v1(split_file: Path, scene_root: Path, *, dataset: str, split
 
 
 def content_files(split_file: Path, top: Optional[Dict[str, Any]] = None) -> List[Path]:
+    """Per-scene content files of a split, sorted.
+
+    Raises:
+        FileNotFoundError: If the split has no inline episodes and no content files.
+    """
     split_file = Path(split_file)
     top = top if top is not None else _read_json_gz(split_file)
     pattern = str(top.get("content_scenes_path") or DEFAULT_CONTENT_PATH)

@@ -39,12 +39,19 @@ class ParseReplayBackend:
 
     @property
     def parse_prompt(self):
+        """The parse prompt of the replayed source (its hash is part of the lookup key)."""
         return self.parse_source.parse_prompt
 
     def parse_goal(self, text: str, lang: str):
+        """Return the recorded parse of ``text`` in ``lang``; never calls the live model.
+
+        Raises:
+            InvalidOutputError: If no recorded parse exists for this command (counted as "did not understand").
+        """
         return self.parse_source.parse_goal(text, lang)
 
     def describe_config(self) -> Dict[str, Any]:
+        """The live backend's manifest entry plus the replayed parse source (prompt, sources, source models)."""
         d = self.inner.describe_config()
         d["parse_replay"] = {"prompt": self.parse_prompt.ref, "prompt_sha256": self.parse_prompt.sha256,
                              "sources": list(self.inner.spec["parse_replay"]["sources"]),

@@ -33,6 +33,19 @@ MIN_SCENES_FOR_CLUSTER_CI = 5
 
 @dataclass
 class Arm:
+    """One arm of a results table: its run directories and everything loaded from them.
+
+    Attributes:
+        key: Short identifier used in contrasts.
+        label: Display name.
+        runs: Run directories (one per seed).
+        group: Optional group name for the table layout.
+        episodes: Completed episodes of all runs (``episodes.csv`` rows plus the failure stage).
+        exclusions: Episodes excluded before running (``exclusions.csv``).
+        failures: Episodes that never completed (D-046).
+        verifications: Verifier events from ``events.jsonl``.
+        calls: Model call records from ``vlm_calls.jsonl``.
+    """
     key: str
     label: str
     runs: List[Path]
@@ -328,6 +341,10 @@ FUNNEL = (("goal in view", "goal_ever_in_view"), ("detected", "goal_ever_detecte
 
 
 def funnel(arms: Sequence[Arm]) -> pd.DataFrame:
+    """Share of episodes reaching each step of the grounding funnel: goal in view, detected, verified, success.
+
+    The ``verified`` step is NaN for arms without a verifier.
+    """
     rows = []
     for a in arms:
         d = a.episodes
@@ -351,6 +368,7 @@ def verifier_samples(arm: Arm) -> Tuple[np.ndarray, np.ndarray, str]:
 
 
 def verifier_table(arms: Sequence[Arm]) -> pd.DataFrame:
+    """Per arm: verifier calls, goal calls, sensitivity and specificity at P(yes) >= 0.5, raw ECE and Brier score."""
     rows = []
     for a in arms:
         p, y, label = verifier_samples(a)

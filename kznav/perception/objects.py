@@ -36,6 +36,12 @@ MAX_FUSION_POINTS = 200          # world points kept per candidate for the visib
 
 @dataclass
 class ObjectCandidate:
+    """One physical object the robot has detected, with its map footprint and everything decided about it.
+
+    The fields fall into three groups: localisation (position, map points, heights), detection evidence (scores
+    per query, fused confidence and observed volume, latest box) and the verifier's state (calibrated answers,
+    rejected or confirmed, second-look bookkeeping).
+    """
     cid: int
     query_index: int
     position: np.ndarray                 # habitat world (median of observed points)
@@ -68,20 +74,24 @@ class ObjectCandidate:
         return m / m.max() if m.max() > 0 else m
 
     def priority(self, weights: Optional[Sequence[float]] = None) -> float:
+        """Detector score used to rank candidates without fusion: the best score, or the hypothesis-weighted sum."""
         if weights is None:
             return self.best_score
         return float(sum(w * self.scores.get(k, 0.0) for k, w in enumerate(weights)))
 
     @property
     def xy(self) -> np.ndarray:
+        """Candidate position in the 2-D map frame (x, -z of the Habitat position)."""
         return np.array([self.position[0], -self.position[2]])
 
     def nearest_distance(self, xy: Sequence[float]) -> float:
+        """Distance from a map point to the nearest observed point of the candidate."""
         return float(np.min(np.linalg.norm(self.points_xy - np.asarray(xy)[None, :], axis=1)))
 
 
 @dataclass(frozen=True)
 class DetectionParams:
+    """Parameters of detection filtering, 3-D localisation, association and fusion (``perception.detection``)."""
     score_threshold: float
     min_mask_pixels: int
     merge_radius_m: float
@@ -96,6 +106,7 @@ class DetectionParams:
 
     @classmethod
     def from_config(cls, d: Mapping[str, Any], max_depth_m: float) -> "DetectionParams":
+        """Build from the ``perception.detection`` config block and the sensor's maximum depth."""
         f = d.get("point_filter") or {}
         fu = d.get("fusion") or {}
         return cls(float(d["score_threshold"]), int(d["min_mask_pixels"]), float(d["merge_radius_m"]),
@@ -106,6 +117,13 @@ class DetectionParams:
 
 
 class ObjectMemory:
+    """The robot's memory of object candidates within an episode (see the module docstring).
+
+    Args:
+        params: Detection, localisation and fusion parameters.
+        K: Camera intrinsics used to back-project masks.
+        rng_seed: Seed of the point-subsampling generator.
+    """
     def __init__(self, params: DetectionParams, K: Intrinsics, rng_seed: int = 0):
         self.p = params
         self.K = K
@@ -115,6 +133,7 @@ class ObjectMemory:
 
     @property
     def fusion(self) -> bool:
+        """Whether target-centric confidence fusion (D-060) is on."""
         return self.p.fusion
 
     def reset(self, seed: Optional[int] = None) -> None:
@@ -150,6 +169,20 @@ class ObjectMemory:
 
     def add(self, det: Detection, mask: np.ndarray, depth: np.ndarray, T_world_cam: np.ndarray,
             step: int, floor_y: Optional[float] = None, precise: bool = False) -> Optional[ObjectCandidate]:
+        """Localise a detection and merge it into the nearest candidate, or start a new candidate.
+
+        Args:
+            det: The detection.
+            mask: Its mask (from the segmenter, or the box).
+            depth: Planar depth image of the frame.
+            T_world_cam: 4x4 camera pose.
+            step: Current decision step.
+            floor_y: Floor height under the robot, for the floor filter.
+            precise: The mask is the object's contour (no front-layer depth band).
+
+        Returns:
+            The updated or new candidate, or None if the score is below the threshold or no valid point remains.
+        """
         if det.score < self.p.score_threshold:
             return None
         pts = self.localize(mask, depth, T_world_cam, floor_y, precise)
@@ -238,6 +271,7 @@ class ObjectMemory:
         return int(visible.sum())
 
     def is_reliable(self, c: ObjectCandidate) -> bool:
+        """Whether the policy may approach the candidate (always true without fusion)."""
         return not self.p.fusion or c.conf >= self.p.reliable_conf
 
     def best(self, exclude_unreachable: bool = True, weights: Optional[Sequence[float]] = None,
@@ -268,6 +302,7 @@ def _area(box: Sequence[float]) -> float:
 
 
 def box_mask(det: Detection, shape: Sequence[int]) -> np.ndarray:
+    """Boolean H x W mask covering a detection's box, clipped to the image."""
     h, w = int(shape[0]), int(shape[1])
     x1, y1, x2, y2 = det.box_xyxy
     m = np.zeros((h, w), dtype=bool)

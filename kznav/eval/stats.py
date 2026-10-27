@@ -28,6 +28,16 @@ import numpy as np
 
 @dataclass(frozen=True)
 class ConfidenceInterval:
+    """A point estimate with its confidence interval.
+
+    Attributes:
+        estimate: Point estimate.
+        low: Lower bound.
+        high: Upper bound.
+        n: Number of units the interval is based on (episodes or clusters).
+        level: Confidence level, e.g. 0.95.
+        method: How the interval was computed (e.g. ``wilson``, ``percentile-bootstrap``).
+    """
     estimate: float
     low: float
     high: float
@@ -36,6 +46,7 @@ class ConfidenceInterval:
     method: str
 
     def fmt(self, digits: int = 3) -> str:
+        """Format as ``estimate [low, high]`` with ``digits`` decimals."""
         return f"{self.estimate:.{digits}f} [{self.low:.{digits}f}, {self.high:.{digits}f}]"
 
 
@@ -150,6 +161,7 @@ def cohens_d_paired(a: Sequence[float], b: Sequence[float]) -> float:
 
 @dataclass(frozen=True)
 class McNemarResult:
+    """Discordant counts and the exact two-sided p-value of McNemar's test."""
     only_a: int
     only_b: int
     p_value: float
@@ -234,6 +246,7 @@ def cluster_bootstrap_mean(values: Sequence[float], clusters: Sequence, *, n_boo
 
 @dataclass(frozen=True)
 class PermutationResult:
+    """Result of the scene sign-flip permutation test."""
     statistic: float          # mean paired difference over units
     p_value: float            # two-sided
     n_clusters: int

@@ -30,6 +30,7 @@ def depth_to_rgb(depth: np.ndarray, max_m: float) -> np.ndarray:
 
 
 def resize_to_height(img: np.ndarray, height: int) -> np.ndarray:
+    """Resize an image to ``height`` pixels, keeping the aspect ratio."""
     cv2 = _cv2()
     h, w = img.shape[:2]
     return cv2.resize(img, (max(1, round(w * height / h)), height), interpolation=cv2.INTER_AREA)
@@ -49,6 +50,7 @@ class TopDownMap:
     mpp: float
 
     def to_px(self, x: float, y_map: float) -> Tuple[int, int]:
+        """Pixel (column, row) of a map-frame point."""
         return int(round((x - self.lower_x) / self.mpp)), int(round((-y_map - self.lower_z) / self.mpp))
 
     def render(
@@ -61,6 +63,7 @@ class TopDownMap:
         goal: Optional[Tuple[float, float]] = None,
         collisions: Sequence[Tuple[float, float]] = (),
     ) -> np.ndarray:
+        """Draw the navigable area with an optional planned path, the trajectory and the robot's pose."""
         cv2 = _cv2()
         img = np.where(self.grid[..., None], np.uint8(235), np.uint8(90)).repeat(3, axis=2)
         if path is not None and len(path) > 1:
@@ -143,6 +146,7 @@ class Mp4Writer:
         self._shape: Optional[Tuple[int, ...]] = None
 
     def write(self, frame: np.ndarray) -> None:
+        """Append a frame; frames of another size are resized to the first frame's size."""
         if self._shape is None:
             self._shape = frame.shape
         elif frame.shape != self._shape:
@@ -151,6 +155,7 @@ class Mp4Writer:
         self.n_frames += 1
 
     def close(self) -> None:
+        """Finish the MP4 file."""
         self._w.close()
 
 

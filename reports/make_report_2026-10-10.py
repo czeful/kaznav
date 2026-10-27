@@ -38,14 +38,17 @@ BUL = ParagraphStyle("bul", parent=BODY, leftIndent=12, bulletIndent=2, spaceAft
 
 
 def P(t, s=BODY):
+    """A body paragraph."""
     return Paragraph(t, s)
 
 
 def bullets(items, s=BUL):
+    """A bulleted list of paragraphs."""
     return [Paragraph(t, s, bulletText="•") for t in items]
 
 
 def table(rows, widths, bold_rows=(), caption=None):
+    """A gridded table with a bold header row and an optional caption."""
     data = [[Paragraph(str(c), CELLB if (i == 0 or i in bold_rows) else CELL) for c in r] for i, r in enumerate(rows)]
     t = Table(data, colWidths=[w * cm for w in widths], repeatRows=1)
     t.setStyle(TableStyle([
@@ -65,12 +68,15 @@ def table(rows, widths, bold_rows=(), caption=None):
 
 # ------------------------------------------------------------------------------------------- block diagram
 class Diagram(Flowable):
+    """The pipeline diagram drawn directly on the PDF canvas."""
     W, H = 515, 605
 
     def wrap(self, aw, ah):
+        """Fixed size of the diagram in points."""
         return self.W, self.H
 
     def box(self, c, cx, cy, w, h, text, neural=False, double=False):
+        """A centred box with a bold first line; neural components get a thick border."""
         x, y = cx - w / 2, cy - h / 2
         c.setLineWidth(1.7 if neural else 0.7)
         c.rect(x, y, w, h, stroke=1, fill=0)
@@ -86,6 +92,7 @@ class Diagram(Flowable):
             c.drawCentredString(cx, top - i * lh, ln)
 
     def arrow(self, c, pts, dashed=False, head=True):
+        """A polyline with an optional arrowhead at its end."""
         c.setLineWidth(0.8)
         c.setDash(3, 2) if dashed else c.setDash()
         p = c.beginPath()
@@ -106,11 +113,13 @@ class Diagram(Flowable):
             c.drawPath(h, stroke=0, fill=1)
 
     def label(self, c, x, y, text, align="left"):
+        """An italic label; ``|`` separates lines."""
         c.setFont("Arial-Italic", 6.6)
         for i, ln in enumerate(text.split("|")):
             (c.drawString if align == "left" else c.drawCentredString)(x, y - i * 7.6, ln)
 
     def draw(self):
+        """Draw the boxes and arrows of the pipeline."""
         c = self.canv
         c.setStrokeColor(colors.black)
         c.setFillColor(colors.black)
@@ -590,6 +599,7 @@ story += [table([
 
 
 def on_page(canvas, doc):
+    """Page footer with the page number."""
     canvas.saveState()
     canvas.setFont("Arial", 7.5)
     canvas.drawRightString(A4[0] - 1.8 * cm, 1.1 * cm, f"kznav · отчёт для защиты · стр. {doc.page}")

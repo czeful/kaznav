@@ -17,6 +17,11 @@ SCHEMA_VERSION = 4   # v2: + recoveries; v3: + goal_mode, pipeline_lang, transla
 @dataclass
 class EpisodeResult:
     # --- identity -------------------------------------------------------------
+    """One row of ``episodes.csv``: the identity of an episode and its standard metrics.
+
+    The runner adds further diagnostic columns (outcome, failure-stage inputs, model calls, latencies); this class
+    fixes the core schema that every analysis relies on.
+    """
     run_id: str
     cell_id: str                 # matrix cell (backend x condition), "" for single runs
     dataset: str                 # e.g. hm3d_objectnav_v1 / hm3d_ovon / custom_room
@@ -90,8 +95,10 @@ class EpisodeResult:
     notes: str = ""
 
     def to_row(self) -> dict:
+        """Return the record as a dict, one key per CSV column."""
         return asdict(self)
 
 
 def column_names() -> List[str]:
+    """Return the core column names of ``episodes.csv`` in schema order."""
     return [f.name for f in fields(EpisodeResult)]

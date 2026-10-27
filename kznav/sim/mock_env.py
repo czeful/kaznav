@@ -26,6 +26,7 @@ from .frames import habitat_to_map, map_to_habitat
 
 @dataclass(frozen=True)
 class MockBox:
+    """An axis-aligned box of the mock world (Habitat frame corners, semantic id, colour, category)."""
     lo: Tuple[float, float, float]      # habitat (x, y, z) min corner
     hi: Tuple[float, float, float]
     semantic_id: int = 0
@@ -42,6 +43,14 @@ def room_with_boxes(size: float = 6.0, wall_h: float = 2.5, extra: Sequence[Mock
 
 
 class MockEnv:
+    """GPU-free box-world simulator with the ``HabitatEnv`` interface (see the module docstring).
+
+    Args:
+        cfg: The run config (the ``embodiment`` block is read).
+        boxes: The world's boxes.
+        grid_res: Cell size of the free-space grid used for snapping and geodesics.
+        seed: Seed of the random navigable points.
+    """
     def __init__(self, cfg: Mapping[str, Any], boxes: Sequence[MockBox], grid_res: float = 0.05, seed: int = 0):
         self.cfg = cfg
         self._rng = np.random.default_rng(seed)
@@ -89,6 +98,7 @@ class MockEnv:
 
     # ------------------------------------------------------------------ rendering
     def camera_transform_at(self, position: Sequence[float], yaw: float) -> np.ndarray:
+        """4x4 world transform of the camera at a reference position and map heading (as ``HabitatEnv``)."""
         mount = self.emb["sensors"]["rgbd"]["mount"]
         theta = yaw - math.pi / 2
         c, s = math.cos(theta), math.sin(theta)
@@ -134,6 +144,7 @@ class MockEnv:
 
     # ------------------------------------------------------------------ HabitatEnv interface
     def reset(self, position: Sequence[float], yaw: float) -> Observation:
+        """Place the robot at ``position`` with map heading ``yaw`` and return the first observation."""
         x, y = habitat_to_map(position)
         self.pose = (x, y, yaw)
         self.sim_time = 0.0
@@ -142,6 +153,7 @@ class MockEnv:
         return self.observe()
 
     def observe(self) -> Observation:
+        """Ray-cast RGB, depth and semantics at the current pose."""
         pos = map_to_habitat(self.pose[0], self.pose[1])
         T = self.camera_transform_at(pos, self.pose[2])
         r = self._render(T)
@@ -149,6 +161,7 @@ class MockEnv:
                            camera_transform=T, sim_time=self.sim_time)
 
     def drive(self, v_cmd: float, w_cmd: float, n_ticks: int = 1) -> List[Tick]:
+        """Apply a twist command for ``n_ticks`` ticks; the robot stops in place on contact."""
         out = []
         for _ in range(n_ticks):
             v, w = self.limiter.step(v_cmd, w_cmd, self.control_dt)
@@ -164,6 +177,7 @@ class MockEnv:
         return out
 
     def act(self, action: str) -> Tick:
+        """Take one discrete action; a blocked forward step slides along the obstacle's free axis."""
         d = self.emb["drive"]
         x, y, yaw = self.pose
         hit = False
@@ -187,20 +201,24 @@ class MockEnv:
                     v_cmd=0.0, w_cmd=0.0, collision=hit)
 
     def render_at(self, position: Sequence[float], yaw: float) -> Dict[str, np.ndarray]:
+        """Sensor images from a hypothetical pose (the robot does not move)."""
         return self._render(self.camera_transform_at(position, yaw))
 
     def snap(self, point: Sequence[float], pathfinder: Any = None) -> np.ndarray:
+        """The point itself (on the floor) if its cell is free; NaN otherwise."""
         r, c = self._cell(point)
         if 0 <= r < self.free_grid.shape[0] and 0 <= c < self.free_grid.shape[1] and self.free_grid[r, c]:
             return np.array([point[0], 0.0, point[2]], dtype=np.float64)
         return np.array([np.nan, np.nan, np.nan])
 
     def random_navigable_point(self, pathfinder: Any = None) -> np.ndarray:
+        """Centre of a random free cell."""
         rr, cc = np.nonzero(self.free_grid)
         i = int(self._rng.integers(len(rr)))
         return np.array([self.g_x0 + (cc[i] + 0.5) * self.g_res, 0.0, self.g_z0 + (rr[i] + 0.5) * self.g_res])
 
     def geodesic_distance(self, start: Sequence[float], goals: Sequence[Sequence[float]], pathfinder: Any = None) -> float:
+        """Grid-Dijkstra distance from ``start`` to the nearest of ``goals`` (inf if unreachable)."""
         from ..policy.planner import GridPlanner  # reuse the graph builder
 
         h, w = self.free_grid.shape
@@ -217,8 +235,10 @@ class MockEnv:
         return best
 
     def semantic_objects(self) -> Dict[int, SemanticObject]:
+        """Boxes with a semantic id, as semantic objects."""
         return {b.semantic_id: SemanticObject(b.semantic_id, str(b.semantic_id), b.category, list(b.lo), list(b.hi))
                 for b in self.boxes if b.semantic_id > 0}
 
     def close(self) -> None:
+        """Nothing to release."""
         pass

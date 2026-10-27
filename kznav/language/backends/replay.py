@@ -22,6 +22,16 @@ from ..schemas import GoalHypotheses, VerificationResult, VerifyQuery
 
 @BACKENDS.register("replay")
 class ReplayBackend(VLMBackend):
+    """Answers every call from recorded ``vlm_calls.jsonl`` files instead of a model.
+
+    Args:
+        spec: Backend config with ``replay.sources`` (one or more call logs) and the prompts of the recorded run.
+        prompts: Prompt library; the prompt hashes must equal the recorded ones for lookups to hit.
+        sink: Receives a ``CallRecord`` per replayed call, marked with where it was replayed from.
+
+    Raises:
+        BackendConfigError: If no source is given.
+    """
     def __init__(self, spec: Mapping[str, Any], prompts: PromptLibrary, sink=None):
         super().__init__(spec, prompts, sink)
         r = self.spec.get("replay") or {}
@@ -43,6 +53,7 @@ class ReplayBackend(VLMBackend):
 
     @property
     def capabilities(self) -> BackendCapabilities:
+        """Capabilities declared in the config."""
         return self._caps
 
     def _lookup(self, rec: CallRecord) -> Dict[str, Any]:
@@ -66,4 +77,5 @@ class ReplayBackend(VLMBackend):
 
     @property
     def source_model_ids(self) -> List[str]:
+        """The model ids found in the replayed call logs, sorted."""
         return sorted(str(x) for x in self._source_model_ids)

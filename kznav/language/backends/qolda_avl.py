@@ -63,6 +63,17 @@ class HFAVLRuntime:
 
     def generate(self, messages: List[dict], audio: Optional[Sequence[np.ndarray]], max_new_tokens: int,
                  thinking: str) -> str:
+        """Generate a reply to chat ``messages`` with optional audio clips, greedily.
+
+        Args:
+            messages: Chat messages; audio parts are placeholders filled from ``audio`` in order.
+            audio: Mono 16 kHz clips, one per audio part, or None for a text-only request.
+            max_new_tokens: Generation budget (thinking included).
+            thinking: ``native`` lets the model open its think block; ``skip`` prefills an empty one.
+
+        Returns:
+            The decoded new tokens without end-of-turn markers.
+        """
         prompt = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         if thinking == "skip":
             prompt += "\n</think>\n\n"                 # the template ends with "<think>\n": an empty think block
@@ -78,6 +89,20 @@ class HFAVLRuntime:
 
 @BACKENDS.register("qolda_avl")
 class QoldaAVLBackend(VLMBackend):
+    """Qolda-AVL parses a spoken (or, as a control, typed) command; it does not verify (D-077).
+
+    See the module docstring for the speech and thinking modes.
+
+    Args:
+        spec: The backend config block (``configs/backend/qolda_avl.yaml``).
+        prompts: Prompt library.
+        sink: Receives one ``CallRecord`` per call.
+        runtime: Optional model runtime (tests inject a fake); loaded lazily otherwise.
+        speech_bank: Optional speech bank (tests inject one); built from the config otherwise.
+
+    Raises:
+        BackendConfigError: If the input mode, thinking mode or parse prompt are inconsistent.
+    """
     def __init__(self, spec: Mapping[str, Any], prompts: PromptLibrary, sink=None, runtime=None,
                  speech_bank: Optional[SpeechBank] = None):
         super().__init__(spec, prompts, sink)
@@ -105,16 +130,23 @@ class QoldaAVLBackend(VLMBackend):
 
     @property
     def capabilities(self) -> BackendCapabilities:
+        """Capabilities declared in the config (no logprobs, no images: parsing only)."""
         return self._caps
 
     @property
     def runtime(self):
+        """The model runtime, loaded on first use (10 GB of weights; only the offline parse tool needs it)."""
         if self._runtime is None:
             self._runtime = HFAVLRuntime(self.spec)
         return self._runtime
 
     @property
     def bank(self) -> SpeechBank:
+        """The speech bank of the configured speaker, built on first use from the command bank and the recordings.
+
+        Raises:
+            BackendConfigError: If ``speech.root``, ``speech.speaker`` or ``speech.commands`` is missing.
+        """
         if self._bank is None:
             from ..commands import NaturalCommands
 

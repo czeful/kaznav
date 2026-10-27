@@ -34,11 +34,13 @@ class SemanticObject:
 
     @property
     def center(self) -> List[float]:
+        """Centre of the object's axis-aligned bounding box."""
         return [(a + b) / 2 for a, b in zip(self.aabb_min, self.aabb_max)]
 
 
 @dataclass
 class GoalInstance:
+    """One goal object of an episode with the view points computed for the evaluated embodiment."""
     object_id: str
     semantic_id: int
     category: str
@@ -50,6 +52,7 @@ class GoalInstance:
 
 @dataclass
 class ObjectNavEpisode:
+    """An ObjectNav episode prepared for one embodiment (start, goal category, goal instances, geodesic)."""
     episode_id: str
     scene_id: str
     dataset: str
@@ -63,18 +66,22 @@ class ObjectNavEpisode:
     info: Dict[str, Any] = field(default_factory=dict)
 
     def view_points(self) -> List[List[float]]:
+        """View points of all goal instances (success is measured against these)."""
         return [vp for g in self.goals for vp in g.view_points]
 
     def goal_semantic_ids(self) -> List[int]:
+        """Semantic ids of the goal instances."""
         return [g.semantic_id for g in self.goals]
 
 
 def save_episodes(path: Path, episodes: Sequence[ObjectNavEpisode]) -> None:
+    """Write episodes as JSON (parent directories are created)."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps([asdict(e) for e in episodes], indent=1), encoding="utf-8")
 
 
 def load_episodes(path: Path) -> List[ObjectNavEpisode]:
+    """Read episodes written by ``save_episodes``."""
     out = []
     for d in json.loads(Path(path).read_text(encoding="utf-8")):
         d["goals"] = [GoalInstance(**g) for g in d["goals"]]
@@ -132,6 +139,7 @@ def compute_view_points(env: Any, goal: GoalInstance, *, success_radius_m: float
 # ---------------------------------------------------------------------------- debug scenes
 @dataclass(frozen=True)
 class ObjectSpec:
+    """A debug-scene object type: category, Habitat object config and how many to place."""
     category: str
     config_path: str                 # habitat object_config.json
     count: int
@@ -185,6 +193,25 @@ def placement_populate(specs: Sequence[ObjectSpec], rng: np.random.Generator, pl
 def sample_episodes(env: Any, goals: Sequence[GoalInstance], category: str, n: int, rng: np.random.Generator,
                     *, min_geodesic_m: float, max_geodesic_m: float, scene_id: str, dataset: str, split: str,
                     embodiment: str, max_tries: int = 5000) -> List[ObjectNavEpisode]:
+    """Sample up to ``n`` episodes with random navigable starts at a geodesic distance in range.
+
+    Args:
+        env: The simulator of the scene.
+        goals: Goal instances with their view points.
+        category: Goal category of the episodes.
+        n: Number of episodes wanted.
+        rng: Random generator (also seeds the pathfinder).
+        min_geodesic_m: Minimum start-to-goal geodesic distance.
+        max_geodesic_m: Maximum start-to-goal geodesic distance.
+        scene_id: Scene of the episodes.
+        dataset: Dataset name recorded in the episodes.
+        split: Split name recorded in the episodes.
+        embodiment: Embodiment the geodesic was measured for.
+        max_tries: Number of random starts tried.
+
+    Returns:
+        The episodes; empty if the category has no goal with view points.
+    """
     cat_goals = [g for g in goals if g.category == category and g.view_points]
     vps = [vp for g in cat_goals for vp in g.view_points]
     if not vps:

@@ -23,6 +23,18 @@ from ..schemas import GoalHypotheses, VerificationResult, VerifyQuery
 
 @BACKENDS.register("openai_compat")
 class OpenAICompatBackend(VLMBackend):
+    """Backend for a model served behind an OpenAI-compatible ``/chat/completions`` API.
+
+    Used directly for Gemma (``type: openai_compat``) and subclassed for Qolda and Qwen, which only add
+    config validation. Parsing goes through the shared parse loop; verification reads P(yes) from the first
+    generated token's top log-probabilities.
+
+    Args:
+        spec: The backend config block (``configs/backend/<name>.yaml``).
+        prompts: Prompt library to load the configured prompt versions from.
+        sink: Receives one ``CallRecord`` per call.
+        transport: Optional httpx transport (tests inject a fake server).
+    """
     def __init__(self, spec: Mapping[str, Any], prompts: PromptLibrary, sink=None, transport=None):
         super().__init__(spec, prompts, sink)
         s = self.spec
@@ -55,6 +67,7 @@ class OpenAICompatBackend(VLMBackend):
 
     @property
     def capabilities(self) -> BackendCapabilities:
+        """Capabilities declared in the config (logprobs, images, context size)."""
         return self._caps
 
     # ------------------------------------------------------------------ request building

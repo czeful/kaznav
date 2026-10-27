@@ -36,6 +36,7 @@ DEFAULT_MAX_PIXELS = 4 * TILE * TILE      # four tiles (D-007's default for Qold
 
 
 def decode_image(data_uri: str) -> Image.Image:
+    """Decode a base64 image or ``data:`` URI to an RGB image."""
     b64 = data_uri.split(",", 1)[1] if "," in data_uri else data_uri
     return Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
 
@@ -64,6 +65,7 @@ def to_qwen_messages(messages: List[dict], decode: Callable[[str], Image.Image] 
 
 
 def openai_response(model: str, r: Dict[str, Any], want_logprobs: bool, kznav: Dict[str, Any]) -> Dict[str, Any]:
+    """Wrap an engine result as an OpenAI chat completion, with the bench's extra fields under ``kznav``."""
     lp = None
     if want_logprobs and r["top_logprobs"]:
         first = r["top_logprobs"][0]
@@ -83,6 +85,12 @@ def openai_response(model: str, r: Dict[str, Any], want_logprobs: bool, kznav: D
 
 # ---------------------------------------------------------------------------- model
 class QwenVLEngine:
+    """Qwen3-VL loaded in bfloat16 on one GPU; answers one chat request at a time.
+
+    Args:
+        model_path: Hugging Face id or local path of the checkpoint.
+        device: Torch device.
+    """
     def __init__(self, model_path: str, device: str = "cuda"):
         from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
 
@@ -102,6 +110,20 @@ class QwenVLEngine:
     @torch.no_grad()
     def chat(self, messages: List[dict], *, temperature: float, max_tokens: int, want_logprobs: bool,
              top_logprobs: int, min_pixels: int, max_pixels: int) -> Dict[str, Any]:
+        """Generate one answer to OpenAI-style messages.
+
+        Args:
+            messages: OpenAI chat messages (text and ``image_url`` parts).
+            temperature: Sampling temperature; 0 decodes greedily.
+            max_tokens: Maximum number of new tokens.
+            want_logprobs: Also return the top log-probabilities of the first generated token.
+            top_logprobs: How many of them.
+            min_pixels: Minimum pixel budget per image.
+            max_pixels: Maximum pixel budget per image (D-040).
+
+        Returns:
+            The text, latency, token counts, first-token top log-probabilities, image grids and image token counts.
+        """
         qmsgs, images = to_qwen_messages(messages)
         prompt = self.processor.apply_chat_template(qmsgs, tokenize=False, add_generation_prompt=True)
         self._set_pixel_budget(min_pixels, max_pixels)
@@ -136,6 +158,7 @@ class QwenVLEngine:
 
 
 class ChatRequest(BaseModel):
+    """Body of ``/v1/chat/completions``: the OpenAI fields the bench uses plus the per-request pixel budget."""
     model_config = ConfigDict(extra="allow")
     model: str
     messages: List[dict]
@@ -149,6 +172,7 @@ class ChatRequest(BaseModel):
 
 
 def create_app(engine: QwenVLEngine, served_name: str, min_pixels: int, max_pixels: int) -> FastAPI:
+    """FastAPI app with the OpenAI chat endpoint plus ``/kznav/stats`` and ``/kznav/reset_peak`` (GPU memory)."""
     app = FastAPI(title="kznav Qwen-VL server")
 
     @app.get("/v1/models")
@@ -182,6 +206,7 @@ def create_app(engine: QwenVLEngine, served_name: str, min_pixels: int, max_pixe
 
 
 def main() -> None:
+    """Parse the command line, load the model and serve it."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", default="Qwen/Qwen3-VL-4B-Instruct")
     ap.add_argument("--served-name", default="qwen3-vl-4b")

@@ -19,6 +19,16 @@ from .base import Attempt, CallRecord, TransportError, utc_now
 
 
 class ChatClient:
+    """Minimal chat-completions client with explicit timeouts and retries (see the module docstring).
+
+    Args:
+        base_url: Server URL ending in ``/v1``.
+        api_key: Bearer token (local servers accept any value).
+        timeout_s: Timeout of one request.
+        max_attempts: Requests per call, including the first.
+        backoff_s: Base of the exponential backoff between attempts.
+        transport: Optional httpx transport (tests inject a fake server).
+    """
     def __init__(
         self,
         base_url: str,
@@ -41,9 +51,22 @@ class ChatClient:
         )
 
     def close(self) -> None:
+        """Close the underlying HTTP connection pool."""
         self._client.close()
 
     def chat(self, body: Dict[str, Any], rec: CallRecord) -> Dict[str, Any]:
+        """POST one chat-completions request, retrying timeouts, connection errors, 429 and 5xx.
+
+        Args:
+            body: The request body, sent as JSON exactly as logged.
+            rec: Call record; every HTTP attempt is appended to it and retries are counted.
+
+        Returns:
+            The server's JSON response, verbatim.
+
+        Raises:
+            TransportError: On a non-retryable 4xx or when all attempts failed.
+        """
         last = ""
         for attempt in range(1, self.max_attempts + 1):
             if attempt > 1:
@@ -78,6 +101,11 @@ class ChatClient:
 
 
 def first_message_text(data: Dict[str, Any]) -> str:
+    """Content of the first choice's message (empty string if null).
+
+    Raises:
+        TransportError: If the response has no ``choices[0].message.content``.
+    """
     try:
         return data["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError, TypeError) as e:
