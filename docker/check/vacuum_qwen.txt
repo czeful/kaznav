@@ -1,0 +1,3 @@
+# docker reproducibility check: dev3 episodes of dev_confirm/qwen_kk (shortest success, shortest failure)
+b3WpMbPFB6q:45568
+b3WpMbPFB6q:40536

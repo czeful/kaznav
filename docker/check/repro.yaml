@@ -1,0 +1,42 @@
+# Docker reproducibility check (D-089): 14 dev episodes of three finished dev arms, run once on the host
+# environments and once in the container (docker/check/run.sh <tag> writes runs/docker_check/<tag>/...), then
+# compared call by call (docker/check/compare.py): rendered image hashes, VLM outputs, episode metrics.
+# Arms copy their dev originals: dev_confirm qolda_kk / qwen_kk (robot-vacuum, live parse, Qolda / Qwen server) and
+# dev_speech_d086_agent kkasr_kk_cascade (standard agent, replayed parse of the NeMo transcripts). Videos follow
+# run.video.fraction (default 0.05; the runner does not read run.video.enabled), so the check also writes an mp4.
+name: repro
+title: "Docker reproducibility check (D-089): host vs container on 14 dev episodes"
+out_root: runs/docker_check/TAG
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - value_encoder=siglip2_base
+  - run.video.enabled=false
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+  qwen: {start: bash tools/start_qwen.sh, pid_file: runs/servers/qwen.pid, health: "http://127.0.0.1:23334/v1/models"}
+arms:
+  - {key: vac_qolda_kk, label: "robot-vacuum, Qolda, kk (dev_confirm qolda_kk)", lang: kk, server: qolda,
+     reference: runs/matrix/dev_confirm/qolda_kk/seed0,
+     overrides: [embodiment=wheeled_vacuum_kinematic, eval.episode_budget.max_decision_steps=800,
+                 run.episodes.subset_file=docker/check/vacuum_qolda.txt,
+                 backend=qolda, backend.prompts.parse_goal=default/parse_goal/v4, policy.verification.question_lang=en,
+                 policy.stop.calibration_file=calib/qolda_dev18_en.json, policy.verification.commit_approach=true,
+                 policy.verification.verify_range_m=1.5, policy.approach.stop_mode=visible]}
+  - {key: vac_qwen_kk, label: "robot-vacuum, Qwen3-VL-4B, kk (dev_confirm qwen_kk)", lang: kk, server: qwen,
+     reference: runs/matrix/dev_confirm/qwen_kk/seed0,
+     overrides: [embodiment=wheeled_vacuum_kinematic, eval.episode_budget.max_decision_steps=800,
+                 run.episodes.subset_file=docker/check/vacuum_qwen.txt,
+                 backend=qwen3vl_4b, backend.prompts.parse_goal=default/parse_goal/v4,
+                 policy.verification.question_lang=en, policy.stop.calibration_file=calib/qwen3vl_4b_dev18_en.json,
+                 policy.verification.commit_approach=true, policy.verification.verify_range_m=1.5,
+                 policy.approach.stop_mode=visible]}
+  - {key: agent_kkasr_cascade, label: "standard agent, NeMo transcripts parsed by Qolda (dev_speech_d086_agent)",
+     lang: kk, server: qolda, reference: runs/matrix/dev_speech_d086_agent/kkasr_kk_cascade/seed0,
+     overrides: [embodiment=habitat_agent, run.episodes.subset_file=docker/check/agent.txt,
+                 backend=qolda, backend.prompts.parse_goal=default/parse_goal/v4, policy.verification.question_lang=en,
+                 policy.stop.calibration_file=calib/qolda_dev23_en.json, policy.verification.commit_approach=true,
+                 policy.verification.verify_range_m=1.5, policy.approach.stop_mode=visible,
+                 ++backend.parse_replay.prompt=default/parse_goal/v4,
+                 "++backend.parse_replay.sources=[runs/speech/d086/cascade_none_S01/vlm_calls.jsonl]"]}
+breakdowns: [goal_category]

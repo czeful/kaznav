@@ -1,0 +1,7 @@
+# docker reproducibility check: dev3 episodes of dev_confirm/qolda_kk (3 shortest successes, 2 shortest failures, the median success)
+1S7LAXRdDqK:36885
+xWvSkKiWQpC:37711
+1S7LAXRdDqK:43600
+CQWES1bawee:14927
+b3WpMbPFB6q:43356
+b3WpMbPFB6q:45568

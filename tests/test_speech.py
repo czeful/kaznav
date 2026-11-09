@@ -10,7 +10,16 @@ from kznav.language.backends.qolda_avl import QoldaAVLBackend, split_thinking
 from kznav.language.backends.replay import ReplayBackend
 from kznav.language.base import BackendConfigError, ListSink
 from kznav.language.schemas import VerifyQuery
-from kznav.language.speech import SAMPLE_RATE, SpeechBank, clip_path, read_wav, resample, write_wav
+from kznav.language.speech import (
+    PEAK_LEVEL,
+    SAMPLE_RATE,
+    SpeechBank,
+    clip_path,
+    normalize_level,
+    read_wav,
+    resample,
+    write_wav,
+)
 
 GOAL = ('{"target": "орындық", "target_en": "chair", "hypotheses": [{"en": "wooden chair", "w": 0.6}, '
         '{"en": "office chair", "w": 0.4}], "attributes": {"material": [], "color": [], "size": []}, '
@@ -79,6 +88,32 @@ def test_bank_finds_the_recording_by_the_command_text(tmp_path):
         b.clip("Диванды тап", "kk")
     with pytest.raises(ValueError, match="same kk text"):
         SpeechBank(tmp_path, "S01", {("a", "kk"): TEXT, ("b", "kk"): TEXT})
+
+
+def test_loudness_normalisation():
+    x = 0.1 * tone(300, SAMPLE_RATE)
+    assert normalize_level(x, "none") == pytest.approx(x)
+    assert np.abs(normalize_level(x, "peak")).max() == pytest.approx(PEAK_LEVEL)
+    assert not normalize_level(np.zeros(10, np.float32), "peak").any()
+    with pytest.raises(ValueError):
+        normalize_level(x, "rms")
+
+
+def test_bank_level_scales_the_clip_and_is_recorded(tmp_path):
+    plain = bank(tmp_path).clip(TEXT, "kk")
+    assert "level" not in plain.describe()                # records made before D-085 stay as they were
+    loud = SpeechBank(tmp_path, "S01", {("chair-a01-01", "kk"): TEXT}, level="peak").clip(TEXT, "kk")
+    assert np.abs(loud.audio).max() == pytest.approx(PEAK_LEVEL) and loud.describe()["level"] == "peak"
+    assert loud.sha256 == plain.sha256                    # the same file
+    with pytest.raises(ValueError):
+        SpeechBank(tmp_path, "S01", {}, level="loud")
+
+
+def test_backend_rejects_an_unknown_level(repo_root, prompt_lib):
+    s = spec(repo_root)
+    s["speech"] = dict(s["speech"], level="loud")
+    with pytest.raises(BackendConfigError, match="level"):
+        _ = QoldaAVLBackend(s, prompt_lib, ListSink(), runtime=FakeRuntime([])).bank
 
 
 def test_split_thinking():
@@ -150,3 +185,13 @@ def test_speech_prompt_is_v4_but_the_last_turn(prompt_lib):
     for key in ("system", "fewshot", "fewshot_targets", "user_template", "retry_template"):
         assert sp[key] == v4[key], key
     assert sp["input"] == "audio" and sp["audio_instruction"]
+
+
+def test_transcript_prompt_is_v4_plus_one_rule(prompt_lib):
+    tp, v4 = prompt_lib.load("transcript/parse_goal/v1").data, prompt_lib.load("default/parse_goal/v4").data
+    for key in ("fewshot", "fewshot_targets", "user_template", "retry_template"):
+        assert tp[key] == v4[key], key
+    assert tp["system"].startswith(v4["system"])
+    extra = tp["system"][len(v4["system"]):]
+    assert extra.startswith("- The command is an automatic speech-recognition transcript") and extra.count("\n- ") == 0
+    assert tp.get("input", "text") == "text"

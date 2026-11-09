@@ -7,6 +7,9 @@ Recordings live outside git (voices are personal data) in one folder per speaker
 ``speaker`` is an anonymised id (S01, ...; ``tts_mms`` for the synthetic pilot), never a name. Any WAV
 (8/16/24/32-bit PCM or 32-bit float, mono or stereo, any sample rate) is read and turned into mono float32 at
 16 kHz, what Whisper-style encoders expect. Only the standard library and numpy are used.
+
+``level`` (D-085): ``none`` passes the recording on as recorded; ``peak`` scales it so that its peak is
+``PEAK_LEVEL``, as a microphone's automatic gain control would (phone recordings of S01 peak at 0.07-0.21).
 """
 from __future__ import annotations
 
@@ -21,6 +24,8 @@ import numpy as np
 from .lexicon import normalize
 
 SAMPLE_RATE = 16000
+LEVELS = ("none", "peak")
+PEAK_LEVEL = 0.9                # about -1 dBFS
 
 
 @dataclass(frozen=True)
@@ -33,6 +38,7 @@ class SpeechClip:
     sha256: str                 # of the file's bytes: a re-recorded command is a different input
     audio: np.ndarray           # mono float32 in [-1, 1] at SAMPLE_RATE
     file_rate: int
+    level: str = "none"         # loudness normalisation applied to ``audio`` (one of LEVELS)
 
     @property
     def duration_s(self) -> float:
@@ -40,9 +46,34 @@ class SpeechClip:
         return len(self.audio) / SAMPLE_RATE
 
     def describe(self) -> Dict[str, object]:
-        """Provenance of the clip for the call record (path, speaker, command, hash, duration, file rate)."""
-        return {"path": self.path, "speaker": self.speaker, "command_id": self.command_id, "lang": self.lang,
-                "sha256": self.sha256, "duration_s": round(self.duration_s, 3), "file_rate": self.file_rate}
+        """Provenance of the clip for the call record (path, speaker, command, hash, duration, file rate, level)."""
+        d: Dict[str, object] = {"path": self.path, "speaker": self.speaker, "command_id": self.command_id,
+                                "lang": self.lang, "sha256": self.sha256, "duration_s": round(self.duration_s, 3),
+                                "file_rate": self.file_rate}
+        if self.level != "none":                # records made before D-085 stay byte-identical
+            d["level"] = self.level
+        return d
+
+
+def normalize_level(x: np.ndarray, level: str) -> np.ndarray:
+    """Loudness normalisation of a clip (D-085).
+
+    Args:
+        x: Mono float32 audio.
+        level: ``none`` (returned unchanged) or ``peak`` (scaled so that the peak is ``PEAK_LEVEL``).
+
+    Returns:
+        The clip as float32; silence stays silence.
+
+    Raises:
+        ValueError: If ``level`` is unknown.
+    """
+    if level not in LEVELS:
+        raise ValueError(f"level must be one of {LEVELS}, got {level!r}")
+    peak = float(np.max(np.abs(x))) if len(x) else 0.0
+    if level == "none" or peak == 0.0:
+        return x.astype(np.float32)
+    return (x * (PEAK_LEVEL / peak)).astype(np.float32)
 
 
 def resample(x: np.ndarray, rate: int, target: int = SAMPLE_RATE) -> np.ndarray:
@@ -101,11 +132,14 @@ class SpeechBank:
     """The recordings of one speaker, looked up by the command text the run hands to the parser.
 
     ``texts`` maps (command id, lang) -> command text (the natural command bank). The run calls the parser with
-    (text, lang); the bank finds the command id of that text and loads its recording.
+    (text, lang); the bank finds the command id of that text and loads its recording. ``level`` is the loudness
+    normalisation applied to every clip (``normalize_level``).
     """
 
-    def __init__(self, root: Path, speaker: str, texts: Dict[Tuple[str, str], str]):
-        self.root, self.speaker = Path(root), speaker
+    def __init__(self, root: Path, speaker: str, texts: Dict[Tuple[str, str], str], level: str = "none"):
+        if level not in LEVELS:
+            raise ValueError(f"level must be one of {LEVELS}, got {level!r}")
+        self.root, self.speaker, self.level = Path(root), speaker, level
         self._ids: Dict[Tuple[str, str], str] = {}
         for (cid, lang), text in texts.items():
             key = (lang, normalize(text))
@@ -115,9 +149,10 @@ class SpeechBank:
         self._cache: Dict[Tuple[str, str], SpeechClip] = {}
 
     @classmethod
-    def from_commands(cls, root: Path, speaker: str, commands: Iterable) -> "SpeechBank":
+    def from_commands(cls, root: Path, speaker: str, commands: Iterable, level: str = "none") -> "SpeechBank":
         """``commands``: NaturalCommand objects (kznav.language.commands)."""
-        return cls(root, speaker, {(c.id, lang): t for c in commands for lang, t in c.texts.items() if t.strip()})
+        return cls(root, speaker, {(c.id, lang): t for c in commands for lang, t in c.texts.items() if t.strip()},
+                   level)
 
     def command_id(self, text: str, lang: str) -> str:
         """The command id whose text in ``lang`` equals ``text`` (after normalisation).
@@ -144,7 +179,8 @@ class SpeechBank:
                 raise FileNotFoundError(f"no recording {path} (speaker {self.speaker}, command {cid}, {lang})")
             audio, rate = read_wav(path)
             self._cache[(cid, lang)] = SpeechClip(str(path), self.speaker, cid, lang,
-                                                  hashlib.sha256(path.read_bytes()).hexdigest(), audio, rate)
+                                                  hashlib.sha256(path.read_bytes()).hexdigest(),
+                                                  normalize_level(audio, self.level), rate, self.level)
         return self._cache[(cid, lang)]
 
     def available(self, command_id: str, lang: str) -> Optional[Path]:

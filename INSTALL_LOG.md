@@ -16,7 +16,7 @@ habitat_env, nav_env с GroundingDINO, сервер Qolda) —
 | conda `nav_env` (py 3.10) | оригинальный GroundingDINO, собранный под sm_120 | детектор-бенчмарк пилота; для сверки (D-009) |
 | venv `~/qolda-env` (py 3.13) | transformers 4.57.6, torch 2.12, fastapi; lmdeploy 0.17.0 (не работает с Qolda) | сервер Qolda (`qolda check/local_server/qolda_server.py`) |
 
-Точный состав `habitat_env`: `env/habitat_env.conda.yml`, `env/habitat_env.pip-freeze.txt`.
+Точный состав всех окружений (`habitat_env`, `qolda-env`, `avl-env`, `nemo-env`) и закреплённые версии моделей — `env/` (`bash docker/lock_envs.sh`); из него собираются Docker-образы, `docker/README.md` (D-089).
 
 ## 2026-09-24
 
@@ -112,9 +112,9 @@ Windows может не открыть.
 
 ### Не сделано / известно
 
-- Docker не установлен (пользователь установит). Dockerfile для Linux-сервера с
-  NVIDIA EGL — отдельная задача: там `gpu_device_id` должен быть ≥ 0, а переменные
-  Mesa не нужны.
+- Docker (2026-11-08, D-089): образы `kznav-sim` и `kznav-speech`, `docker/README.md`.
+  Linux-сервер с NVIDIA EGL поддержан (`KZNAV_GPU_DEVICE_ID=0`, без переменных Mesa), но
+  на этом ПК проверить его нельзя.
 - Датасеты HM3D ещё не скачаны (ждём доступ Matterport). Их место —
   `$KZNAV_DATA_ROOT` (по умолчанию `~/kznav_data` на ext4 внутри WSL: GLB через
   `/mnt/c` читаются медленно).

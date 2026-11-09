@@ -1,0 +1,32 @@
+# The stand in containers. Use it through docker/kz.sh: it sets the variables below and adds the GPU override for
+# the host, docker/compose.wsl.yaml (Windows + WSL2) or docker/compose.nvidia.yaml (Linux + NVIDIA Container Toolkit).
+# The repository, the datasets and the HF cache are mounted at their host paths (the HM3D links in the data root are
+# absolute, and run outputs keep the same paths as outside the container).
+name: kznav
+
+x-common: &common
+  user: "${KZNAV_UID:-0}:${KZNAV_GID:-0}"
+  working_dir: ${KZNAV_REPO:?run through docker/kz.sh}
+  shm_size: 8gb
+  environment:
+    KZNAV_DATA_ROOT: ${KZNAV_DATA_ROOT}
+    HF_HOME: ${HF_HOME}
+    HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}     # runs load the pinned cache only (tools/fetch_models.py fills it)
+    HF_TOKEN:                                # passed through when set on the host (gated Gemma 3)
+    MATTERPORT_TOKEN_ID:                     # passed through for tools/download_hm3d.sh
+    MATTERPORT_TOKEN_SECRET:
+  volumes:
+    - ${KZNAV_REPO}:${KZNAV_REPO}
+    - ${KZNAV_DATA_ROOT}:${KZNAV_DATA_ROOT}
+    - ${HF_HOME}:${HF_HOME}
+
+services:
+  sim:
+    <<: *common
+    image: kznav-sim:${KZNAV_IMAGE_TAG:-1}
+    build: {context: .., dockerfile: docker/Dockerfile}
+  speech:
+    <<: *common
+    image: kznav-speech:${KZNAV_IMAGE_TAG:-1}
+    build: {context: .., dockerfile: docker/Dockerfile.speech}
+    profiles: [speech]

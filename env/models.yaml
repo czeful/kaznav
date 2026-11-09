@@ -1,0 +1,213 @@
+# HF models of the stand at the revisions of the dev machine (2026-11-08); written by docker/lock_envs.sh, read by tools/fetch_models.py
+IDEA-Research/grounding-dino-base:
+  revision: 12bdfa3120f3e7ec7b434d90674b3396eccf88eb
+  group: dev
+  files:
+  - config.json
+  - model.safetensors
+  - preprocessor_config.json
+  - special_tokens_map.json
+  - tokenizer.json
+  - tokenizer_config.json
+  - vocab.txt
+IDEA-Research/grounding-dino-tiny:
+  revision: a2bb814dd30d776dcf7e30523b00659f4f141c71
+  group: core
+  files:
+  - added_tokens.json
+  - config.json
+  - model.safetensors
+  - preprocessor_config.json
+  - special_tokens_map.json
+  - tokenizer.json
+  - tokenizer_config.json
+  - vocab.txt
+PekingU/rtdetr_r101vd_coco_o365:
+  revision: ff44b69152a72cc752677665fb4539507d56a99d
+  group: core
+  files:
+  - config.json
+  - model.safetensors
+  - preprocessor_config.json
+Qwen/Qwen3-VL-4B-Instruct:
+  revision: ebb281ec70b05090aa6165b016eac8ec08e71b17
+  group: core
+  files:
+  - .gitattributes
+  - README.md
+  - chat_template.json
+  - config.json
+  - generation_config.json
+  - merges.txt
+  - model-00001-of-00002.safetensors
+  - model-00002-of-00002.safetensors
+  - model.safetensors.index.json
+  - preprocessor_config.json
+  - tokenizer.json
+  - tokenizer_config.json
+  - video_preprocessor_config.json
+  - vocab.json
+bert-base-uncased:
+  revision: 86b5e0934494bd15c9632b12f734a8a67f723594
+  group: core
+  files:
+  - config.json
+  - model.safetensors
+  - tokenizer.json
+  - tokenizer_config.json
+  - vocab.txt
+facebook/mms-tts-eng:
+  revision: c71de0fe7204c83f1c10820a7d696d0b450048ba
+  group: speech
+  files:
+  - config.json
+  - model.safetensors
+  - special_tokens_map.json
+  - tokenizer_config.json
+  - vocab.json
+facebook/mms-tts-kaz:
+  revision: 5c8a1d86e6a952f78f9c5b0f5d3090c19d00ad63
+  group: speech
+  files:
+  - config.json
+  - model.safetensors
+  - special_tokens_map.json
+  - tokenizer_config.json
+  - vocab.json
+facebook/nllb-200-distilled-600M:
+  revision: f8d333a098d19b4fd9a8b18f94170487ad3f821d
+  group: core
+  files:
+  - config.json
+  - generation_config.json
+  - pytorch_model.bin
+  - sentencepiece.bpe.model
+  - special_tokens_map.json
+  - tokenizer.json
+  - tokenizer_config.json
+facebook/sam2.1-hiera-tiny:
+  revision: de431c4043854a71d8101e17995dfe596bf101a5
+  group: core
+  files:
+  - config.json
+  - model.safetensors
+  - preprocessor_config.json
+  - processor_config.json
+google/gemma-3-4b-it:
+  revision: 093f9f388b31de276ce2de164bdc2081324b9767
+  group: core
+  files:
+  - .gitattributes
+  - README.md
+  - added_tokens.json
+  - chat_template.json
+  - config.json
+  - generation_config.json
+  - model-00001-of-00002.safetensors
+  - model-00002-of-00002.safetensors
+  - model.safetensors.index.json
+  - preprocessor_config.json
+  - processor_config.json
+  - special_tokens_map.json
+  - tokenizer.json
+  - tokenizer.model
+  - tokenizer_config.json
+google/siglip2-base-patch16-224:
+  revision: 75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2
+  group: core
+  files:
+  - config.json
+  - model.safetensors
+  - preprocessor_config.json
+  - special_tokens_map.json
+  - tokenizer.json
+  - tokenizer.model
+  - tokenizer_config.json
+iSEE-Laboratory/llmdet_base:
+  revision: 3537869413e7dca01cfd86d6ab10553b72e4fe29
+  group: dev
+  files:
+  - config.json
+  - model.safetensors
+  - preprocessor_config.json
+  - special_tokens_map.json
+  - tokenizer_config.json
+  - vocab.txt
+iSEE-Laboratory/llmdet_tiny:
+  revision: d05199165a19320a9236396e20fca0a5e065189c
+  group: dev
+  files:
+  - config.json
+  - model.safetensors
+  - preprocessor_config.json
+  - special_tokens_map.json
+  - tokenizer_config.json
+  - vocab.txt
+issai/Qolda:
+  revision: 3a8816bf2eda781c3a1fb073f3e2345d1ae2e712
+  group: core
+  files:
+  - .gitattributes
+  - README.md
+  - added_tokens.json
+  - assets/eval-results-text.png
+  - assets/eval-results-vision.png
+  - chat_template.jinja
+  - config.json
+  - configuration_intern_vit.py
+  - configuration_internvl_chat.py
+  - conversation.py
+  - generation_config.json
+  - merges.txt
+  - model-00001-of-00002.safetensors
+  - model-00002-of-00002.safetensors
+  - model.safetensors.index.json
+  - modeling_intern_vit.py
+  - modeling_internvl_chat.py
+  - preprocessor_config.json
+  - special_tokens_map.json
+  - tokenizer_config.json
+  - video_preprocessor_config.json
+  - vocab.json
+issai/Qolda-AVL-5B:
+  revision: e09b9c23faee8429b4d503636176edfc4ce061a6
+  group: speech
+  files:
+  - .gitattributes
+  - README.md
+  - assets/Qolda-AVL-architecture.svg
+  - assets/question_audio.wav
+  - assets/sample_audio.wav
+  - assets/sample_image.jpg
+  - chat_template.jinja
+  - config.json
+  - configuration_qwen3_avl.py
+  - generation_config.json
+  - model.safetensors
+  - modeling_qwen3_avl.py
+  - preprocessor_config.json
+  - processing_qwen3_avl.py
+  - processor_config.json
+  - tokenizer.json
+  - tokenizer_config.json
+  - video_preprocessor_config.json
+openmmlab-community/mm_grounding_dino_base_o365v1_goldg_v3det:
+  revision: 6f52a61753b22842954209e4b190b22135c57bf0
+  group: core
+  files:
+  - config.json
+  - model.safetensors
+  - preprocessor_config.json
+  - special_tokens_map.json
+  - tokenizer_config.json
+  - vocab.txt
+openmmlab-community/mm_grounding_dino_tiny_o365v1_goldg_v3det:
+  revision: ef2053aa1e0cc9d9cee1df31ca919ee9aae4fc8e
+  group: dev
+  files:
+  - config.json
+  - model.safetensors
+  - preprocessor_config.json
+  - special_tokens_map.json
+  - tokenizer_config.json
+  - vocab.txt

@@ -5,8 +5,9 @@
         --out runs/speech/cascade_tts_mms_qolda -- backend=qolda backend.prompts.parse_goal=default/parse_goal/v4
 
 ``--speech`` is a run of tools/parse_speech_commands.py made with ``--transcribe`` (its commands.jsonl holds the
-transcripts). Each transcript is parsed like a typed command (the same backend and prompt as the text arms), and the
-call is re-keyed to the command's own text (``rekey_parse_record``), so a robot run replays it with
+transcripts), or of tools/transcribe_kk_asr.py (D-086: the Kazakh ASR model; its rows name the model). Each
+transcript is parsed like a typed command (the same backend and prompt as the text arms), and the call is re-keyed to
+the command's own text (``rekey_parse_record``), so a robot run replays it with
 ``++backend.parse_replay.prompt=default/parse_goal/v4 "++backend.parse_replay.sources=[<out>/vlm_calls.jsonl]"``.
 No transcript, or a failed parse, leaves no usable record: the episode counts as "did not understand".
 
@@ -65,9 +66,12 @@ def main() -> None:
                                   category=r["category"], word_type="universal", lexicon=lex, settings=GoalSettings())
                 rec = g.parse_record
                 if rec is not None:
+                    asr_model = r.get("asr_model") or "qolda-avl-5b"     # D-086 rows name their ASR model
                     d = rekey_parse_record(rec.to_json_dict(), r["text"], r["lang"], transcript_cer=r.get("cer"),
-                                           asr=r.get("audio"), asr_model="qolda-avl-5b")
-                    d["model_id"] = f"{rec.model_id} (ASR: qolda-avl-5b)"
+                                           asr=r.get("audio"), asr_model=asr_model)
+                    if r.get("asr"):
+                        d["inputs"]["asr_settings"] = r["asr"]
+                    d["model_id"] = f"{rec.model_id} (ASR: {asr_model})"
                     fc.write(json.dumps(d, ensure_ascii=False, default=str) + "\n")
                     row["latency_s"] = round(rec.latency_total_s, 2)
                 en = g.target_en or ""
@@ -81,7 +85,9 @@ def main() -> None:
     with open(out / "commands.jsonl", "w", encoding="utf-8") as f:
         for row in rows:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
-    title = f"Cascade: Qolda-AVL transcript -> {cfg['backend']['name']} ({cfg['backend']['prompts']['parse_goal']})"
+    asr_names = sorted({r.get("asr_model") or "Qolda-AVL" for r in rows_in})
+    title = (f"Cascade: {', '.join(asr_names)} transcript -> {cfg['backend']['name']} "
+             f"({cfg['backend']['prompts']['parse_goal']})")
     (out / "summary.md").write_text(summarize(rows, title), encoding="utf-8")
     print(summarize(rows, title))
     print("CASCADE_DONE", flush=True)

@@ -15,6 +15,10 @@ Writes into ``--out``:
   error rate against the command text (a diagnostic call, not in vlm_calls.jsonl);
 * ``summary.md`` - the same per language.
 
+``--transcribe-only`` (D-085) skips the end-to-end parse and only writes the transcripts (the cascade's input,
+tools/parse_transcripts.py); ``--level`` and ``--transcribe-instruction`` override the config's loudness
+normalisation (``speech.level``) and recognition instruction (``transcribe_instruction``).
+
 Resumes: (command, language) rows already in commands.jsonl are skipped.
 """
 from __future__ import annotations
@@ -89,6 +93,16 @@ def summarize(rows, title: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def summarize_transcripts(rows, title: str) -> str:
+    """Markdown summary of a ``--transcribe-only`` run: mean CER per language and every transcript."""
+    langs = sorted({r["lang"] for r in rows}, key=["kk", "kk_ru", "en"].index)
+    cers = [[r["cer"] for r in rows if r["lang"] == lang] for lang in langs]
+    lines = [f"# {title}, transcripts only", "", "| | " + " | ".join(langs) + " |", "|---" * (len(langs) + 1) + "|",
+             "| mean CER | " + " | ".join(f"{sum(c) / len(c):.3f}" for c in cers) + " |", ""]
+    lines += [f"- {r['command_id']} {r['lang']}: {r['text']!r} -> {r['transcript']!r} (CER {r['cer']})" for r in rows]
+    return "\n".join(lines) + "\n"
+
+
 def main() -> None:
     """Command-line entry point: parse every command once (resumable) and write the summary."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -100,8 +114,15 @@ def main() -> None:
     ap.add_argument("--role", default="dev", help="dev: the dev commands (default) | benchmark: approved test ones")
     ap.add_argument("--config", default="configs/backend/qolda_avl.yaml")
     ap.add_argument("--transcribe", action="store_true", help="speech: also ask for a transcript (diagnostic)")
+    ap.add_argument("--transcribe-only", action="store_true",
+                    help="speech: only the transcripts, no end-to-end parse (the cascade's input, D-085)")
+    ap.add_argument("--level", choices=["none", "peak"], default=None,
+                    help="loudness normalisation of the recordings (default: the config's speech.level, else none)")
+    ap.add_argument("--transcribe-instruction", default=None, help="default: the config's transcribe_instruction")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
+    if args.transcribe_only and args.input != "speech":
+        raise SystemExit("--transcribe-only needs --input speech")
 
     spec = yaml.safe_load((REPO / args.config).read_text(encoding="utf-8"))
     spec["input"] = args.input
@@ -110,6 +131,10 @@ def main() -> None:
         set_dotted(spec, "speech.speaker", args.speaker)
     if args.thinking:
         spec["thinking"] = args.thinking
+    if args.level:
+        set_dotted(spec, "speech.level", args.level)
+    if args.transcribe_instruction:
+        spec["transcribe_instruction"] = args.transcribe_instruction
     set_dotted(spec, "speech.commands", args.commands)
 
     out = Path(args.out)
@@ -139,6 +164,19 @@ def main() -> None:
     t_start = time.time()
     for i, (c, lang) in enumerate(todo, 1):
         text = c.texts[lang].strip()
+        if args.transcribe_only:
+            clip = backend.bank.clip(text, lang)
+            t0 = time.time()
+            transcript, _ = backend.transcribe(clip)
+            row = {"command_id": c.id, "category": c.category, "lang": lang, "text": text, "input": args.input,
+                   "transcript": transcript, "cer": round(cer(transcript, text), 4), "audio": clip.describe(),
+                   "transcribe_instruction": spec.get("transcribe_instruction"),
+                   "transcribe_latency_s": round(time.time() - t0, 2)}
+            rows_f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            rows_f.flush()
+            done[(c.id, lang)] = row
+            print(f"[speech] {i}/{len(todo)} {c.id} {lang}: heard {transcript!r} cer={row['cer']}", flush=True)
+            continue
         backend.context.episode_id = f"{c.id}|{lang}"
         g = parse_command(backend, calls, command_id=c.id, text=text, lang=lang, category=c.category,
                           word_type="universal", lexicon=lex, settings=GoalSettings())
@@ -167,8 +205,9 @@ def main() -> None:
     title = (f"Qolda-AVL parse, input={args.input}, thinking={backend.thinking}"
              + (f", speaker {spec['speech']['speaker']}" if args.input == "speech" else ""))
     rows = [done[k] for k in sorted(done)]
-    (out / "summary.md").write_text(summarize(rows, title), encoding="utf-8")
-    print(summarize(rows, title))
+    text = summarize_transcripts(rows, title) if args.transcribe_only else summarize(rows, title)
+    (out / "summary.md").write_text(text, encoding="utf-8")
+    print(text)
     print("SPEECH_PARSE_DONE", flush=True)
 
 

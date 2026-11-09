@@ -1,0 +1,25 @@
+# D-086, standard agent: spoken kk commands of speaker S01 through the cascade with the Kazakh ASR model
+# (NeMo FastConformer-RNNT, tools/transcribe_kk_asr.py) instead of Qolda-AVL. Everything as avl_kk_cascade_lvl of
+# dev_speech_d085_agent (D-085), avl_kk_cascade of dev_agent_speech_s01 (D-081, 61/150) and qolda_kk of
+# dev_agent_final (66/150) - only the parse source differs. One human speaker (S01): a pilot.
+name: dev_speech_d086_agent
+title: "DEV: spoken commands, cascade with the Kazakh ASR model, speaker S01, standard agent (D-086)"
+out_root: runs/matrix
+seeds: [0]
+common:
+  - dataset=hm3d_objectnav_v1_train
+  - embodiment=habitat_agent
+  - value_encoder=siglip2_base
+  - run.episodes.subset_file=splits/hm3d_v1_dev_agent.txt
+  - run.video.fraction=0.05
+servers:
+  qolda: {start: bash tools/start_qolda.sh, pid_file: runs/servers/qolda.pid, health: "http://127.0.0.1:23333/v1/models"}
+arms:
+  - {key: kkasr_kk_cascade, label: "Spoken kk, cascade: the Kazakh ASR model transcribes, Qolda 4B parses and verifies",
+     lang: kk, server: qolda, accent: true,
+     overrides: [backend=qolda, backend.prompts.parse_goal=default/parse_goal/v4, policy.verification.question_lang=en,
+                 policy.stop.calibration_file=calib/qolda_dev23_en.json, policy.verification.commit_approach=true,
+                 policy.verification.verify_range_m=1.5, policy.approach.stop_mode=visible,
+                 ++backend.parse_replay.prompt=default/parse_goal/v4,
+                 "++backend.parse_replay.sources=[runs/speech/d086/cascade_none_S01/vlm_calls.jsonl]"]}
+breakdowns: [goal_category]

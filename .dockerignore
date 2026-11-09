@@ -1,0 +1,4 @@
+# The images hold only the environments (docker/Dockerfile*); code, data and runs are mounted.
+*
+!env/
+!docker/

@@ -29,7 +29,7 @@ from ..goal_parsing import ParseLimits, run_parse_loop
 from ..prompts import PromptLibrary, build_parse_messages
 from ..registry import BACKENDS
 from ..schemas import GoalHypotheses, VerificationResult, VerifyQuery
-from ..speech import SpeechBank, SpeechClip
+from ..speech import LEVELS, SpeechBank, SpeechClip
 
 REPO = Path(__file__).resolve().parents[3]
 INPUTS = ("speech", "text")
@@ -145,7 +145,8 @@ class QoldaAVLBackend(VLMBackend):
         """The speech bank of the configured speaker, built on first use from the command bank and the recordings.
 
         Raises:
-            BackendConfigError: If ``speech.root``, ``speech.speaker`` or ``speech.commands`` is missing.
+            BackendConfigError: If ``speech.root``, ``speech.speaker`` or ``speech.commands`` is missing, or
+                ``speech.level`` is unknown.
         """
         if self._bank is None:
             from ..commands import NaturalCommands
@@ -154,8 +155,11 @@ class QoldaAVLBackend(VLMBackend):
             for key in ("root", "speaker", "commands"):
                 if not sp.get(key):
                     raise BackendConfigError(f"{self.name}: input=speech needs speech.{key}")
+            level = str(sp.get("level", "none"))            # D-085; absent = as recorded
+            if level not in LEVELS:
+                raise BackendConfigError(f"{self.name}: speech.level must be one of {LEVELS}, got {level!r}")
             bank = NaturalCommands(REPO / sp["commands"], REPO, role="debug")
-            self._bank = SpeechBank.from_commands(REPO / sp["root"], str(sp["speaker"]), bank.commands)
+            self._bank = SpeechBank.from_commands(REPO / sp["root"], str(sp["speaker"]), bank.commands, level)
         return self._bank
 
     def _max_new_tokens(self, task: str) -> int:

@@ -1,0 +1,37 @@
+# kznav-speech: the offline speech step (D-077 ... D-086), built from env/: avl-env (Qolda-AVL-5B in-process,
+# transformers 5.x; tools/parse_speech_commands.py) and nemo-env (the Kazakh NeMo ASR model;
+# tools/transcribe_kk_asr.py). No simulator: the robot runs replay the parses of its transcripts.
+#   bash docker/kz.sh --build speech
+#   bash docker/kz.sh --speech /opt/nemo-env/bin/python tools/transcribe_kk_asr.py --model ... --out ...
+FROM ubuntu:22.04
+
+ARG MICROMAMBA_VERSION=2.0.5-0
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl bzip2 git build-essential libsndfile1 libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL -o /usr/local/bin/micromamba \
+        "https://github.com/mamba-org/micromamba-releases/releases/download/${MICROMAMBA_VERSION}/micromamba-linux-64" \
+    && chmod +x /usr/local/bin/micromamba
+ENV MAMBA_ROOT_PREFIX=/opt/conda
+
+# avl-env: Python 3.13.11 from pkgs/main, as on the dev machine.
+COPY env/avl-env.pip.txt docker/pip_lock_install.sh /tmp/lock/
+RUN micromamba create -y -p /opt/py313 -c https://repo.anaconda.com/pkgs/main "python=3.13.11=hcf712cf_100_cp313" \
+    && /opt/py313/bin/python -m venv /opt/avl-env \
+    && bash /tmp/lock/pip_lock_install.sh /opt/avl-env/bin/python /tmp/lock/avl-env.pip.txt \
+    && micromamba clean -a -y
+
+# nemo-env: Python 3.11.14 (deadsnakes on the dev machine; conda-forge here), NeMo at the commit the model pins.
+COPY env/nemo-env.pip.txt /tmp/lock/
+RUN micromamba create -y -p /opt/py311 -c conda-forge "python=3.11.14" \
+    && /opt/py311/bin/python -m venv /opt/nemo-env \
+    && bash /tmp/lock/pip_lock_install.sh /opt/nemo-env/bin/python /tmp/lock/nemo-env.pip.txt \
+    && micromamba clean -a -y && rm -rf /tmp/lock
+
+ENV KZNAV_AVL_VENV=/opt/avl-env KZNAV_NEMO_VENV=/opt/nemo-env \
+    NVIDIA_VISIBLE_DEVICES=all NVIDIA_DRIVER_CAPABILITIES=compute,utility \
+    HF_HUB_DISABLE_XET=1 PYTHONIOENCODING=utf-8 PYTHONDONTWRITEBYTECODE=1 USER=kznav
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/kznav-entrypoint
+ENTRYPOINT ["/usr/local/bin/kznav-entrypoint"]
+CMD ["bash"]

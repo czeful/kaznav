@@ -1,0 +1,7 @@
+# docker reproducibility check: dev_agent episodes of dev_speech_d086_agent/kkasr_kk_cascade (3 shortest successes, 2 shortest failures, the median success)
+VoVGtfYrpuQ:40718
+g7hUFVNac26:17495
+g7hUFVNac26:25715
+VoVGtfYrpuQ:41646
+fxbzYAGkrtm:22057
+QVAA6zecMHu:40689

@@ -1,0 +1,7 @@
+# GPU on Windows + WSL2: the paravirtual GPU device and the Windows driver's libraries (CUDA, D3D12 for Mesa).
+# No NVIDIA Container Toolkit needed; docker/entrypoint.sh sets the render variables when it sees /dev/dxg.
+services:
+  sim: &wsl
+    devices: [/dev/dxg]
+    volumes: [/usr/lib/wsl:/usr/lib/wsl:ro]
+  speech: *wsl

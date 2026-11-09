@@ -1,0 +1,9 @@
+# GPU on Linux: the NVIDIA Container Toolkit injects the driver (CUDA, and EGL for Habitat: the images set
+# NVIDIA_DRIVER_CAPABILITIES). CUDA 13 wheels in the model venvs need driver >= 580.
+services:
+  sim: &gpu
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: all, capabilities: [gpu]}]
+  speech: *gpu
